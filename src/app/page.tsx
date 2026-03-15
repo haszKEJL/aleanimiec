@@ -34,6 +34,9 @@ export default function HomePage() {
   const lastAdminSyncAtRef = useRef(0);
 
   const isAdmin = Boolean(adminSecret);
+  const handleTokenExpired = useCallback(() => {
+    setError("Token wygasł. Odśwież URL.");
+  }, []);
 
   const fetchSignedUrl = useCallback(async () => {
     setLoading(true);
@@ -199,6 +202,10 @@ export default function HomePage() {
   };
 
   useEffect(() => {
+    if (isAdmin) {
+      return;
+    }
+
     void fetchSyncState();
 
     const interval = setInterval(() => {
@@ -206,7 +213,7 @@ export default function HomePage() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [fetchSyncState]);
+  }, [fetchSyncState, isAdmin]);
 
   useEffect(() => {
     if (!videoElement || !syncState || isAdmin) {
@@ -330,7 +337,7 @@ export default function HomePage() {
 
           <VideoPlayer
             streamUrl={streamUrl}
-            onTokenExpired={() => setError("Token wygasł. Odśwież URL.")}
+            onTokenExpired={handleTokenExpired}
             showControls={isAdmin}
             onVideoElementChange={setVideoElement}
           />
