@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import ChatSidebar from "@/components/ChatSidebar";
 import VideoPlayer from "@/components/VideoPlayer";
 import { getEpisodeById } from "@/data/episodes";
 
@@ -13,10 +12,12 @@ type SyncStateResponse = {
   currentTime: number;
   paused: boolean;
   updatedAt: number;
+  adminClientId: string | null;
+  adminLastSeenAt: number | null;
 };
 
-const CHAT_HIDDEN_STORAGE_KEY = "aleanimiec_chat_hidden";
 const HOME_EPISODE_ID = "episode-1";
+const ADMIN_CLIENT_ID_STORAGE_KEY = "aleanimiec_admin_client_id";
 
 export default function HomePage() {
   const episodeId = HOME_EPISODE_ID;
@@ -25,9 +26,9 @@ export default function HomePage() {
   const [streamUrl, setStreamUrl] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
-  const [isChatHidden, setIsChatHidden] = useState(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState("");
   const [adminSecret, setAdminSecret] = useState("");
+  const [adminClientId, setAdminClientId] = useState("");
   const [syncState, setSyncState] = useState<SyncStateResponse | null>(null);
   const [syncError, setSyncError] = useState("");
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
@@ -84,19 +85,20 @@ export default function HomePage() {
   }, [fetchSignedUrl]);
 
   useEffect(() => {
-    const saved = localStorage.getItem(CHAT_HIDDEN_STORAGE_KEY);
-    if (saved === "1") {
-      setIsChatHidden(true);
+    const existing = localStorage.getItem(ADMIN_CLIENT_ID_STORAGE_KEY)?.trim();
+    if (existing) {
+      setAdminClientId(existing);
+      return;
     }
-  }, []);
 
-  const toggleChat = () => {
-    setIsChatHidden((previous) => {
-      const next = !previous;
-      localStorage.setItem(CHAT_HIDDEN_STORAGE_KEY, next ? "1" : "0");
-      return next;
-    });
-  };
+    const generated =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `admin-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    localStorage.setItem(ADMIN_CLIENT_ID_STORAGE_KEY, generated);
+    setAdminClientId(generated);
+  }, []);
 
   const fetchSyncState = useCallback(async () => {
     try {
@@ -119,7 +121,7 @@ export default function HomePage() {
 
   const pushAdminSyncState = useCallback(
     async (forcedCurrentTime?: number, forcedPaused?: boolean) => {
-      if (!adminSecret || !videoElement) {
+      if (!adminSecret || !videoElement || !adminClientId) {
         return;
       }
 
@@ -133,12 +135,19 @@ export default function HomePage() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
+            action: "update",
             episodeId,
             currentTime,
             paused,
-            adminPassword: adminSecret,
+            adminClientId,
           }),
         });
+
+        if (response.status === 403) {
+          setAdminSecret("");
+          setSyncError("Sesja admina została przejęta lub wygasła.");
+          return;
+        }
 
         if (!response.ok) {
           setSyncError("Nie udało się wysłać stanu admina.");
@@ -152,12 +161,12 @@ export default function HomePage() {
         setSyncError("Błąd połączenia podczas wysyłania stanu admina.");
       }
     },
-    [adminSecret, episodeId, videoElement],
+    [adminClientId, adminSecret, episodeId, videoElement],
   );
 
   const handleAdminLogin = async () => {
     const password = adminPasswordInput.trim();
-    if (!password) {
+    if (!password || !adminClientId) {
       setSyncError("Podaj hasło administratora.");
       return;
     }
@@ -169,15 +178,22 @@ export default function HomePage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          action: "login",
           episodeId,
           currentTime: videoElement?.currentTime ?? 0,
           paused: videoElement?.paused ?? true,
           adminPassword: password,
+          adminClientId,
         }),
       });
 
       if (response.status === 403) {
         setSyncError("Niepoprawne hasło administratora.");
+        return;
+      }
+
+      if (response.status === 409) {
+        setSyncError("Administrator jest już zalogowany na innym urządzeniu.");
         return;
       }
 
@@ -196,7 +212,27 @@ export default function HomePage() {
     }
   };
 
-  const handleAdminLogout = () => {
+  const handleAdminLogout = async () => {
+    if (!adminClientId) {
+      return;
+    }
+
+    try {
+      await fetch("/api/sync-state", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "logout",
+          episodeId,
+          adminClientId,
+        }),
+      });
+    } catch {
+      // best effort logout
+    }
+
     setAdminSecret("");
     setSyncError("");
   };
@@ -351,26 +387,15 @@ export default function HomePage() {
           ) : (
             <>
               <span className="muted">Tryb admina aktywny</span>
-              <button type="button" className="btn" onClick={handleAdminLogout}>
+              <button type="button" className="btn" onClick={() => void handleAdminLogout()}>
                 Wyłącz admina
               </button>
             </>
           )}
         </div>
-
-        <button type="button" className="btn" onClick={toggleChat}>
-          {isChatHidden ? "Pokaż czat" : "Ukryj czat"}
-        </button>
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gap: 16,
-          gridTemplateColumns: isChatHidden ? "minmax(0, 1fr)" : "minmax(0, 2fr) minmax(300px, 1fr)",
-          alignItems: "start",
-        }}
-      >
+      <div style={{ display: "grid", gap: 16, gridTemplateColumns: "minmax(0, 1fr)", alignItems: "start" }}>
         <article className="card" style={{ display: "grid", gap: 12 }}>
           {error ? <p className="error">{error}</p> : null}
           {loading ? <p className="muted">Pobieranie signed URL...</p> : null}
@@ -395,8 +420,6 @@ export default function HomePage() {
             </button>
           </div>
         </article>
-
-        {!isChatHidden ? <ChatSidebar episodeId={episodeId} /> : null}
       </div>
     </section>
   );
