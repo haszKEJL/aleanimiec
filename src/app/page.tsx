@@ -136,13 +136,13 @@ export default function HomePage() {
             episodeId,
             currentTime,
             paused,
+            adminPassword: adminSecret,
             adminClientId,
           }),
         });
 
-        if (response.status === 403) {
-          setAdminSecret("");
-          setSyncError("Sesja admina została przejęta lub wygasła.");
+        if (response.status === 403 || response.status === 409) {
+          setSyncError("Sesja admina jest zajęta na innym urządzeniu.");
           return;
         }
 

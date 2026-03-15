@@ -20,8 +20,6 @@ type SyncBody = {
   adminClientId?: string;
 };
 
-const ADMIN_PASSWORD = "dupa123";
-
 declare global {
   var __episodeSyncStore: Map<string, EpisodeSyncState> | undefined;
 }
@@ -97,6 +95,11 @@ export async function POST(request: NextRequest) {
   }
 
   const state = getOrCreateSyncState(episodeId);
+  const adminPassword = process.env.ADMIN_SYNC_PASSWORD;
+
+  if (!adminPassword) {
+    return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
+  }
 
   const action = body.action || "update";
   const adminClientId = sanitizeAdminClientId(body.adminClientId || "");
@@ -106,7 +109,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === "login") {
-    if ((body.adminPassword || "") !== ADMIN_PASSWORD) {
+    if ((body.adminPassword || "") !== adminPassword) {
       return NextResponse.json({ error: "Invalid admin password" }, { status: 403 });
     }
 
@@ -133,6 +136,17 @@ export async function POST(request: NextRequest) {
     state.updatedAt = Date.now();
     syncStore.set(episodeId, state);
     return NextResponse.json(state);
+  }
+
+  if (state.adminClientId !== adminClientId) {
+    if (!state.adminClientId && (body.adminPassword || "") === adminPassword) {
+      state.adminClientId = adminClientId;
+      state.adminLastSeenAt = Date.now();
+      state.updatedAt = Date.now();
+      syncStore.set(episodeId, state);
+    } else {
+      return NextResponse.json({ error: "Not current admin" }, { status: 403 });
+    }
   }
 
   if (state.adminClientId !== adminClientId) {
