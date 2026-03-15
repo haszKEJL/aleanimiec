@@ -32,12 +32,10 @@ export default function HomePage() {
   const [, setSyncError] = useState("");
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const lastAdminSyncAtRef = useRef(0);
+  const lastStreamRefreshAtRef = useRef(0);
+  const pendingResumeTimeRef = useRef<number | null>(null);
 
   const isAdmin = Boolean(adminSecret);
-  const handleTokenExpired = useCallback(() => {
-    setError("Token wygasł. Odśwież URL.");
-  }, []);
-
   const fetchSignedUrl = useCallback(async () => {
     setError("");
 
@@ -77,9 +75,59 @@ export default function HomePage() {
     clearTimeout(timeoutId);
   }, [episodeId]);
 
+  const refreshSignedUrl = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastStreamRefreshAtRef.current < 5000) {
+      return;
+    }
+
+    lastStreamRefreshAtRef.current = now;
+    pendingResumeTimeRef.current = videoElement?.currentTime ?? null;
+    await fetchSignedUrl();
+  }, [fetchSignedUrl, videoElement]);
+
+  const handleTokenExpired = useCallback(() => {
+    setError("Odświeżam stream po błędzie autoryzacji...");
+    void refreshSignedUrl();
+  }, [refreshSignedUrl]);
+
   useEffect(() => {
     void fetchSignedUrl();
   }, [fetchSignedUrl]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void refreshSignedUrl();
+    }, 240000);
+
+    return () => clearInterval(interval);
+  }, [refreshSignedUrl]);
+
+  useEffect(() => {
+    if (!videoElement) {
+      return;
+    }
+
+    const resumeTarget = pendingResumeTimeRef.current;
+    if (resumeTarget == null) {
+      return;
+    }
+
+    const resume = () => {
+      if (Math.abs(videoElement.currentTime - resumeTarget) > 2) {
+        videoElement.currentTime = resumeTarget;
+      }
+      pendingResumeTimeRef.current = null;
+    };
+
+    videoElement.addEventListener("loadedmetadata", resume, { once: true });
+    videoElement.addEventListener("canplay", resume, { once: true });
+
+    return () => {
+      videoElement.removeEventListener("loadedmetadata", resume);
+      videoElement.removeEventListener("canplay", resume);
+    };
+  }, [streamUrl, videoElement]);
 
   useEffect(() => {
     const existing = localStorage.getItem(ADMIN_CLIENT_ID_STORAGE_KEY)?.trim();
@@ -253,8 +301,10 @@ export default function HomePage() {
       return;
     }
 
-    const shouldSeek = Math.abs(videoElement.currentTime - syncState.currentTime) > 0.8;
-    if (shouldSeek) {
+    const drift = syncState.currentTime - videoElement.currentTime;
+    if (drift > 2.5) {
+      videoElement.currentTime = syncState.currentTime;
+    } else if (drift < -4) {
       videoElement.currentTime = syncState.currentTime;
     }
 
@@ -328,7 +378,8 @@ export default function HomePage() {
     };
 
     const preventSeekDrift = () => {
-      if (Math.abs(videoElement.currentTime - syncState.currentTime) > 0.6) {
+      const drift = syncState.currentTime - videoElement.currentTime;
+      if (drift > 2.5 || drift < -4) {
         videoElement.currentTime = syncState.currentTime;
       }
       enforceViewerRules();

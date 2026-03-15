@@ -82,6 +82,7 @@ export default function VideoPlayer({
 
         if (data.fatal) {
           setPlayerError("Wystąpił błąd odtwarzania HLS.");
+          onTokenExpired?.();
         }
       });
     } else {
@@ -90,6 +91,7 @@ export default function VideoPlayer({
 
     const onVideoError = () => {
       setPlayerError("Nie udało się odtworzyć materiału wideo.");
+      onTokenExpired?.();
     };
 
     const onCanPlay = () => {
