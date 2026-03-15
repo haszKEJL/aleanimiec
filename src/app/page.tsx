@@ -210,7 +210,7 @@ export default function HomePage() {
 
     const interval = setInterval(() => {
       void fetchSyncState();
-    }, 2000);
+    }, 1000);
 
     return () => clearInterval(interval);
   }, [fetchSyncState, isAdmin]);
@@ -220,7 +220,7 @@ export default function HomePage() {
       return;
     }
 
-    const shouldSeek = Math.abs(videoElement.currentTime - syncState.currentTime) > 1.5;
+    const shouldSeek = Math.abs(videoElement.currentTime - syncState.currentTime) > 0.8;
     if (shouldSeek) {
       videoElement.currentTime = syncState.currentTime;
     }
@@ -248,7 +248,7 @@ export default function HomePage() {
 
     const syncThrottled = () => {
       const now = Date.now();
-      if (now - lastAdminSyncAtRef.current < 1200) {
+      if (now - lastAdminSyncAtRef.current < 800) {
         return;
       }
 
@@ -261,13 +261,54 @@ export default function HomePage() {
     videoElement.addEventListener("seeked", syncNow);
     videoElement.addEventListener("timeupdate", syncThrottled);
 
+    const heartbeat = setInterval(() => {
+      void pushAdminSyncState();
+    }, 1500);
+
     return () => {
       videoElement.removeEventListener("play", syncNow);
       videoElement.removeEventListener("pause", syncNow);
       videoElement.removeEventListener("seeked", syncNow);
       videoElement.removeEventListener("timeupdate", syncThrottled);
+      clearInterval(heartbeat);
     };
   }, [isAdmin, pushAdminSyncState, videoElement]);
+
+  useEffect(() => {
+    if (!videoElement || isAdmin || !syncState) {
+      return;
+    }
+
+    const enforceViewerRules = () => {
+      if (syncState.paused) {
+        if (!videoElement.paused) {
+          videoElement.pause();
+        }
+        return;
+      }
+
+      if (videoElement.paused) {
+        void videoElement.play().catch(() => {
+          setSyncError("Kliknij przycisk play, aby dołączyć do seansu.");
+        });
+      }
+    };
+
+    const preventSeekDrift = () => {
+      if (Math.abs(videoElement.currentTime - syncState.currentTime) > 0.6) {
+        videoElement.currentTime = syncState.currentTime;
+      }
+      enforceViewerRules();
+    };
+
+    videoElement.addEventListener("pause", enforceViewerRules);
+    videoElement.addEventListener("seeking", preventSeekDrift);
+
+    return () => {
+      videoElement.removeEventListener("pause", enforceViewerRules);
+      videoElement.removeEventListener("seeking", preventSeekDrift);
+    };
+  }, [isAdmin, syncState, videoElement]);
 
   if (!episode) {
     return (
@@ -338,7 +379,7 @@ export default function HomePage() {
           <VideoPlayer
             streamUrl={streamUrl}
             onTokenExpired={handleTokenExpired}
-            showControls={isAdmin}
+            showControls
             onVideoElementChange={setVideoElement}
           />
 
