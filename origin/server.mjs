@@ -176,6 +176,40 @@ function verifySignature(pathname, exp, token) {
   return safeCompareHex(token, expected);
 }
 
+function parseByteRange(rangeHeader, fileSize) {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader || "");
+  if (!match) {
+    return null;
+  }
+
+  const startRaw = match[1];
+  const endRaw = match[2];
+
+  let start = startRaw ? Number.parseInt(startRaw, 10) : 0;
+  let end = endRaw ? Number.parseInt(endRaw, 10) : fileSize - 1;
+
+  if (Number.isNaN(start) || Number.isNaN(end)) {
+    return null;
+  }
+
+  if (!startRaw && endRaw) {
+    const suffixLength = Number.parseInt(endRaw, 10);
+    if (Number.isNaN(suffixLength) || suffixLength <= 0) {
+      return null;
+    }
+
+    start = Math.max(fileSize - suffixLength, 0);
+    end = fileSize - 1;
+  }
+
+  if (start < 0 || end < 0 || start > end || start >= fileSize) {
+    return null;
+  }
+
+  end = Math.min(end, fileSize - 1);
+  return { start, end };
+}
+
 const server = createServer(async (req, res) => {
   applyCorsHeaders(req, res);
 
@@ -253,10 +287,50 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    res.statusCode = 200;
-    res.setHeader("Content-Type", getContentType(filePath));
-    res.setHeader("Content-Length", String(fileStat.size));
+    const rangeHeader = req.headers.range;
+    const contentType = getContentType(filePath);
+    const fileSize = fileStat.size;
+
+    res.setHeader("Content-Type", contentType);
     res.setHeader("Cache-Control", "private, max-age=5");
+    res.setHeader("Accept-Ranges", "bytes");
+
+    const range = typeof rangeHeader === "string" ? parseByteRange(rangeHeader, fileSize) : null;
+
+    if (rangeHeader && !range) {
+      res.statusCode = 416;
+      res.setHeader("Content-Range", `bytes */${fileSize}`);
+      res.end();
+      return;
+    }
+
+    if (range) {
+      const chunkSize = range.end - range.start + 1;
+      res.statusCode = 206;
+      res.setHeader("Content-Length", String(chunkSize));
+      res.setHeader("Content-Range", `bytes ${range.start}-${range.end}/${fileSize}`);
+
+      if (req.method === "HEAD") {
+        res.end();
+        return;
+      }
+
+      const partialStream = createReadStream(filePath, { start: range.start, end: range.end });
+      partialStream.on("error", (error) => {
+        console.error("[origin] stream error", error);
+        if (!res.headersSent) {
+          sendJson(res, 500, { error: "Internal error" });
+        } else {
+          res.destroy(error);
+        }
+      });
+
+      partialStream.pipe(res);
+      return;
+    }
+
+    res.statusCode = 200;
+    res.setHeader("Content-Length", String(fileSize));
 
     if (req.method === "HEAD") {
       res.end();

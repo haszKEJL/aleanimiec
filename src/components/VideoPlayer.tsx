@@ -8,7 +8,7 @@ type VideoPlayerProps = {
   onTokenExpired?: () => void;
 };
 
-const LOAD_TIMEOUT_MS = 15000;
+const LOAD_TIMEOUT_MS = 45000;
 
 export default function VideoPlayer({ streamUrl, onTokenExpired }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -35,6 +35,11 @@ export default function VideoPlayer({ streamUrl, onTokenExpired }: VideoPlayerPr
       clearTimeout(timeoutId);
     };
 
+    const markReady = () => {
+      finishLoading();
+      setError(null);
+    };
+
     const setPlayerError = (message: string) => {
       console.error("[VideoPlayer]", message);
       setError(message);
@@ -46,13 +51,13 @@ export default function VideoPlayer({ streamUrl, onTokenExpired }: VideoPlayerPr
 
     if (nativeHls) {
       video.src = streamUrl;
-      video.addEventListener("loadedmetadata", finishLoading, { once: true });
+      video.addEventListener("loadedmetadata", markReady, { once: true });
     } else if (Hls.isSupported()) {
       hls = new Hls();
       hls.loadSource(streamUrl);
       hls.attachMedia(video);
 
-      hls.on(Hls.Events.MANIFEST_PARSED, finishLoading);
+      hls.on(Hls.Events.MANIFEST_PARSED, markReady);
       hls.on(Hls.Events.ERROR, (_event, data) => {
         const statusCode = data.response?.code;
         console.error("[VideoPlayer] hls.js error", data);
@@ -75,11 +80,17 @@ export default function VideoPlayer({ streamUrl, onTokenExpired }: VideoPlayerPr
       setPlayerError("Nie udało się odtworzyć materiału wideo.");
     };
 
+    const onCanPlay = () => {
+      markReady();
+    };
+
     video.addEventListener("error", onVideoError);
+    video.addEventListener("canplay", onCanPlay);
 
     return () => {
       finishLoading();
       video.removeEventListener("error", onVideoError);
+      video.removeEventListener("canplay", onCanPlay);
       if (hls) {
         hls.destroy();
       }

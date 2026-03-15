@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import ChatSidebar from "@/components/ChatSidebar";
 import VideoPlayer from "@/components/VideoPlayer";
 import { getEpisodeById } from "@/data/episodes";
 
@@ -102,24 +103,35 @@ export default function WatchPage() {
         </Link>
       </div>
 
-      <article className="card" style={{ display: "grid", gap: 12 }}>
-        <h1 style={{ margin: 0 }}>{episode.title}</h1>
-        <p className="muted" style={{ margin: 0 }}>
-          {episode.description}
-        </p>
+      <div
+        style={{
+          display: "grid",
+          gap: 16,
+          gridTemplateColumns: "minmax(0, 2fr) minmax(300px, 1fr)",
+          alignItems: "start",
+        }}
+      >
+        <article className="card" style={{ display: "grid", gap: 12 }}>
+          <h1 style={{ margin: 0 }}>{episode.title}</h1>
+          <p className="muted" style={{ margin: 0 }}>
+            {episode.description}
+          </p>
 
-        {error ? <p className="error">{error}</p> : null}
+          {error ? <p className="error">{error}</p> : null}
 
-        {loading ? <p className="muted">Pobieranie signed URL...</p> : null}
+          {loading ? <p className="muted">Pobieranie signed URL...</p> : null}
 
-        <VideoPlayer streamUrl={streamUrl} onTokenExpired={() => setError("Token wygasł. Odśwież URL.")} />
+          <VideoPlayer streamUrl={streamUrl} onTokenExpired={() => setError("Token wygasł. Odśwież URL.")} />
 
-        <div>
-          <button type="button" className="btn" onClick={() => void fetchSignedUrl()} disabled={loading}>
-            Odśwież token
-          </button>
-        </div>
-      </article>
+          <div>
+            <button type="button" className="btn" onClick={() => void fetchSignedUrl()} disabled={loading}>
+              Odśwież token
+            </button>
+          </div>
+        </article>
+
+        <ChatSidebar episodeId={episodeId} />
+      </div>
     </section>
   );
 }
