@@ -1,22 +1,354 @@
-import Link from "next/link";
-import { episodes } from "@/data/episodes";
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ChatSidebar from "@/components/ChatSidebar";
+import VideoPlayer from "@/components/VideoPlayer";
+import { getEpisodeById } from "@/data/episodes";
+
+type StreamApiResponse = {
+  url: string;
+};
+
+type SyncStateResponse = {
+  currentTime: number;
+  paused: boolean;
+  updatedAt: number;
+};
+
+const CHAT_HIDDEN_STORAGE_KEY = "aleanimiec_chat_hidden";
+const HOME_EPISODE_ID = "episode-1";
 
 export default function HomePage() {
-  return (
-    <section>
-      <h1>Lista odcinków</h1>
-      <p className="muted">Wybierz odcinek, aby rozpocząć odtwarzanie HLS.</p>
+  const episodeId = HOME_EPISODE_ID;
+  const episode = useMemo(() => getEpisodeById(episodeId), [episodeId]);
 
-      <div style={{ display: "grid", gap: 12, marginTop: 20 }}>
-        {episodes.map((episode) => (
-          <article key={episode.id} className="card">
-            <h2 style={{ marginTop: 0 }}>{episode.title}</h2>
-            <p className="muted">{episode.description}</p>
-            <Link href={`/watch/${episode.id}`} className="btn" style={{ display: "inline-block" }}>
-              Oglądaj
-            </Link>
-          </article>
-        ))}
+  const [streamUrl, setStreamUrl] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string>("");
+  const [isChatHidden, setIsChatHidden] = useState(false);
+  const [adminPasswordInput, setAdminPasswordInput] = useState("");
+  const [adminSecret, setAdminSecret] = useState("");
+  const [syncState, setSyncState] = useState<SyncStateResponse | null>(null);
+  const [syncError, setSyncError] = useState("");
+  const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  const lastAdminSyncAtRef = useRef(0);
+
+  const isAdmin = Boolean(adminSecret);
+
+  const fetchSignedUrl = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      const response = await fetch(`/api/stream-url?episodeId=${encodeURIComponent(episodeId)}`, {
+        method: "GET",
+        signal: controller.signal,
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        setError("Nie udało się pobrać URL streamu.");
+        setStreamUrl("");
+        return;
+      }
+
+      const payload: StreamApiResponse = await response.json();
+      if (!payload.url) {
+        setError("API zwróciło pusty URL streamu.");
+        setStreamUrl("");
+        return;
+      }
+
+      setStreamUrl(payload.url);
+    } catch (fetchError) {
+      if (fetchError instanceof Error && fetchError.name === "AbortError") {
+        setError("Przekroczono limit czasu oczekiwania na API.");
+      } else {
+        setError("Błąd sieci podczas pobierania streamu.");
+      }
+      setStreamUrl("");
+    } finally {
+      clearTimeout(timeoutId);
+      setLoading(false);
+    }
+  }, [episodeId]);
+
+  useEffect(() => {
+    void fetchSignedUrl();
+  }, [fetchSignedUrl]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(CHAT_HIDDEN_STORAGE_KEY);
+    if (saved === "1") {
+      setIsChatHidden(true);
+    }
+  }, []);
+
+  const toggleChat = () => {
+    setIsChatHidden((previous) => {
+      const next = !previous;
+      localStorage.setItem(CHAT_HIDDEN_STORAGE_KEY, next ? "1" : "0");
+      return next;
+    });
+  };
+
+  const fetchSyncState = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/sync-state?episodeId=${encodeURIComponent(episodeId)}`, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        setSyncError("Nie udało się pobrać stanu synchronizacji.");
+        return;
+      }
+
+      const payload = (await response.json()) as SyncStateResponse;
+      setSyncState(payload);
+      setSyncError("");
+    } catch {
+      setSyncError("Błąd połączenia z synchronizacją odtwarzania.");
+    }
+  }, [episodeId]);
+
+  const pushAdminSyncState = useCallback(
+    async (forcedCurrentTime?: number, forcedPaused?: boolean) => {
+      if (!adminSecret || !videoElement) {
+        return;
+      }
+
+      const currentTime = typeof forcedCurrentTime === "number" ? forcedCurrentTime : videoElement.currentTime;
+      const paused = typeof forcedPaused === "boolean" ? forcedPaused : videoElement.paused;
+
+      try {
+        const response = await fetch("/api/sync-state", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            episodeId,
+            currentTime,
+            paused,
+            adminPassword: adminSecret,
+          }),
+        });
+
+        if (!response.ok) {
+          setSyncError("Nie udało się wysłać stanu admina.");
+          return;
+        }
+
+        const payload = (await response.json()) as SyncStateResponse;
+        setSyncState(payload);
+        setSyncError("");
+      } catch {
+        setSyncError("Błąd połączenia podczas wysyłania stanu admina.");
+      }
+    },
+    [adminSecret, episodeId, videoElement],
+  );
+
+  const handleAdminLogin = async () => {
+    const password = adminPasswordInput.trim();
+    if (!password) {
+      setSyncError("Podaj hasło administratora.");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/sync-state", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          episodeId,
+          currentTime: videoElement?.currentTime ?? 0,
+          paused: videoElement?.paused ?? true,
+          adminPassword: password,
+        }),
+      });
+
+      if (response.status === 403) {
+        setSyncError("Niepoprawne hasło administratora.");
+        return;
+      }
+
+      if (!response.ok) {
+        setSyncError("Nie udało się włączyć trybu admina.");
+        return;
+      }
+
+      const payload = (await response.json()) as SyncStateResponse;
+      setAdminSecret(password);
+      setSyncState(payload);
+      setSyncError("");
+      setAdminPasswordInput("");
+    } catch {
+      setSyncError("Błąd połączenia podczas logowania admina.");
+    }
+  };
+
+  const handleAdminLogout = () => {
+    setAdminSecret("");
+    setSyncError("");
+  };
+
+  useEffect(() => {
+    void fetchSyncState();
+
+    const interval = setInterval(() => {
+      void fetchSyncState();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [fetchSyncState]);
+
+  useEffect(() => {
+    if (!videoElement || !syncState || isAdmin) {
+      return;
+    }
+
+    const shouldSeek = Math.abs(videoElement.currentTime - syncState.currentTime) > 1.5;
+    if (shouldSeek) {
+      videoElement.currentTime = syncState.currentTime;
+    }
+
+    if (syncState.paused && !videoElement.paused) {
+      videoElement.pause();
+      return;
+    }
+
+    if (!syncState.paused && videoElement.paused) {
+      void videoElement.play().catch(() => {
+        setSyncError("Kliknij w wideo, żeby dołączyć do synchronizacji odtwarzania.");
+      });
+    }
+  }, [isAdmin, syncState, videoElement]);
+
+  useEffect(() => {
+    if (!videoElement || !isAdmin) {
+      return;
+    }
+
+    const syncNow = () => {
+      void pushAdminSyncState();
+    };
+
+    const syncThrottled = () => {
+      const now = Date.now();
+      if (now - lastAdminSyncAtRef.current < 1200) {
+        return;
+      }
+
+      lastAdminSyncAtRef.current = now;
+      void pushAdminSyncState();
+    };
+
+    videoElement.addEventListener("play", syncNow);
+    videoElement.addEventListener("pause", syncNow);
+    videoElement.addEventListener("seeked", syncNow);
+    videoElement.addEventListener("timeupdate", syncThrottled);
+
+    return () => {
+      videoElement.removeEventListener("play", syncNow);
+      videoElement.removeEventListener("pause", syncNow);
+      videoElement.removeEventListener("seeked", syncNow);
+      videoElement.removeEventListener("timeupdate", syncThrottled);
+    };
+  }, [isAdmin, pushAdminSyncState, videoElement]);
+
+  if (!episode) {
+    return (
+      <section className="card">
+        <h1>Brak dostępnego odcinka</h1>
+        <p className="muted">Skonfiguruj odcinek `episode-1` w katalogu danych.</p>
+      </section>
+    );
+  }
+
+  return (
+    <section style={{ display: "grid", gap: 16 }}>
+      <article className="card" style={{ display: "grid", gap: 10 }}>
+        <p className="muted" style={{ margin: 0 }}>Aleanimiec • Live Room</p>
+        <h1 style={{ margin: 0 }}>{episode.title}</h1>
+        <p className="muted" style={{ margin: 0 }}>{episode.description}</p>
+      </article>
+
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {!isAdmin ? (
+            <>
+              <input
+                type="password"
+                value={adminPasswordInput}
+                onChange={(event) => setAdminPasswordInput(event.target.value)}
+                placeholder="Hasło admina"
+                style={{
+                  padding: 8,
+                  borderRadius: 8,
+                  border: "1px solid #202b4b",
+                  background: "#0f162d",
+                  color: "#f3f4f6",
+                }}
+              />
+              <button type="button" className="btn" onClick={() => void handleAdminLogin()}>
+                Zaloguj admina
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="muted">Tryb admina aktywny</span>
+              <button type="button" className="btn" onClick={handleAdminLogout}>
+                Wyłącz admina
+              </button>
+            </>
+          )}
+        </div>
+
+        <button type="button" className="btn" onClick={toggleChat}>
+          {isChatHidden ? "Pokaż czat" : "Ukryj czat"}
+        </button>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gap: 16,
+          gridTemplateColumns: isChatHidden ? "minmax(0, 1fr)" : "minmax(0, 2fr) minmax(300px, 1fr)",
+          alignItems: "start",
+        }}
+      >
+        <article className="card" style={{ display: "grid", gap: 12 }}>
+          {error ? <p className="error">{error}</p> : null}
+          {loading ? <p className="muted">Pobieranie signed URL...</p> : null}
+          {syncError ? <p className="error">{syncError}</p> : null}
+
+          <VideoPlayer
+            streamUrl={streamUrl}
+            onTokenExpired={() => setError("Token wygasł. Odśwież URL.")}
+            showControls={isAdmin}
+            onVideoElementChange={setVideoElement}
+          />
+
+          {!isAdmin ? (
+            <p className="muted" style={{ margin: 0 }}>
+              Sterowanie odtwarzaniem jest zablokowane. Kontrolę ma administrator.
+            </p>
+          ) : null}
+
+          <div>
+            <button type="button" className="btn" onClick={() => void fetchSignedUrl()} disabled={loading}>
+              Odśwież token
+            </button>
+          </div>
+        </article>
+
+        {!isChatHidden ? <ChatSidebar episodeId={episodeId} /> : null}
       </div>
     </section>
   );

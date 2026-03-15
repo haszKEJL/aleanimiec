@@ -6,13 +6,25 @@ import { useEffect, useRef, useState } from "react";
 type VideoPlayerProps = {
   streamUrl?: string;
   onTokenExpired?: () => void;
+  showControls?: boolean;
+  onVideoElementChange?: (video: HTMLVideoElement | null) => void;
 };
 
 const LOAD_TIMEOUT_MS = 45000;
 
-export default function VideoPlayer({ streamUrl, onTokenExpired }: VideoPlayerProps) {
+export default function VideoPlayer({
+  streamUrl,
+  onTokenExpired,
+  showControls = true,
+  onVideoElementChange,
+}: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onVideoElementChange?.(videoRef.current);
+    return () => onVideoElementChange?.(null);
+  }, [onVideoElementChange]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -102,7 +114,7 @@ export default function VideoPlayer({ streamUrl, onTokenExpired }: VideoPlayerPr
       {error ? <p className="error">{error}</p> : null}
       <video
         ref={videoRef}
-        controls
+        controls={showControls}
         autoPlay
         style={{ width: "100%", borderRadius: 12, background: "black" }}
       />
