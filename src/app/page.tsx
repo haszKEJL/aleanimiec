@@ -24,13 +24,12 @@ export default function HomePage() {
   const episode = useMemo(() => getEpisodeById(episodeId), [episodeId]);
 
   const [streamUrl, setStreamUrl] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>("");
+  const [, setError] = useState<string>("");
   const [adminPasswordInput, setAdminPasswordInput] = useState("");
   const [adminSecret, setAdminSecret] = useState("");
   const [adminClientId, setAdminClientId] = useState("");
   const [syncState, setSyncState] = useState<SyncStateResponse | null>(null);
-  const [syncError, setSyncError] = useState("");
+  const [, setSyncError] = useState("");
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
   const lastAdminSyncAtRef = useRef(0);
 
@@ -40,7 +39,6 @@ export default function HomePage() {
   }, []);
 
   const fetchSignedUrl = useCallback(async () => {
-    setLoading(true);
     setError("");
 
     const controller = new AbortController();
@@ -74,10 +72,9 @@ export default function HomePage() {
         setError("Błąd sieci podczas pobierania streamu.");
       }
       setStreamUrl("");
-    } finally {
-      clearTimeout(timeoutId);
-      setLoading(false);
     }
+
+    clearTimeout(timeoutId);
   }, [episodeId]);
 
   useEffect(() => {
@@ -347,23 +344,12 @@ export default function HomePage() {
   }, [isAdmin, syncState, videoElement]);
 
   if (!episode) {
-    return (
-      <section className="card">
-        <h1>Brak dostępnego odcinka</h1>
-        <p className="muted">Skonfiguruj odcinek `episode-1` w katalogu danych.</p>
-      </section>
-    );
+    return null;
   }
 
   return (
-    <section style={{ display: "grid", gap: 16 }}>
-      <article className="card" style={{ display: "grid", gap: 10 }}>
-        <p className="muted" style={{ margin: 0 }}>Aleanimiec • Live Room</p>
-        <h1 style={{ margin: 0 }}>{episode.title}</h1>
-        <p className="muted" style={{ margin: 0 }}>{episode.description}</p>
-      </article>
-
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+    <section style={{ display: "grid", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "center", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {!isAdmin ? (
             <>
@@ -395,32 +381,12 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gap: 16, gridTemplateColumns: "minmax(0, 1fr)", alignItems: "start" }}>
-        <article className="card" style={{ display: "grid", gap: 12 }}>
-          {error ? <p className="error">{error}</p> : null}
-          {loading ? <p className="muted">Pobieranie signed URL...</p> : null}
-          {syncError ? <p className="error">{syncError}</p> : null}
-
-          <VideoPlayer
-            streamUrl={streamUrl}
-            onTokenExpired={handleTokenExpired}
-            showControls
-            onVideoElementChange={setVideoElement}
-          />
-
-          {!isAdmin ? (
-            <p className="muted" style={{ margin: 0 }}>
-              Sterowanie odtwarzaniem jest zablokowane. Kontrolę ma administrator.
-            </p>
-          ) : null}
-
-          <div>
-            <button type="button" className="btn" onClick={() => void fetchSignedUrl()} disabled={loading}>
-              Odśwież token
-            </button>
-          </div>
-        </article>
-      </div>
+      <VideoPlayer
+        streamUrl={streamUrl}
+        onTokenExpired={handleTokenExpired}
+        showControls
+        onVideoElementChange={setVideoElement}
+      />
     </section>
   );
 }

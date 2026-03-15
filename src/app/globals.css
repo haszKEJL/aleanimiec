@@ -1,7 +1,7 @@
 :root {
   color-scheme: dark;
-  --bg: #0b1020;
-  --card: #141b31;
+  --bg: #000000;
+  --card: #000000;
   --muted: #9ca3af;
   --text: #f3f4f6;
   --accent: #60a5fa;
@@ -27,14 +27,14 @@ a {
 }
 
 .container {
-  max-width: 960px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 24px;
 }
 
 .card {
   background: var(--card);
-  border: 1px solid #202b4b;
+  border: 1px solid #111111;
   border-radius: 12px;
   padding: 16px;
 }
