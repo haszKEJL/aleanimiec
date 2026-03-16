@@ -135,8 +135,8 @@ export async function GET() {
 
       const displayTitle = anime.title_english?.trim() || anime.title;
 
-      let studioHint = "studio: brak danych";
-      let genreHint = "gatunki: brak danych";
+      let studioHint = "Studio: brak danych";
+      let genreHint = "Gatunki: brak danych";
       let extraHint = "motyw: brak danych";
       let seasonHint = "sezon: brak danych";
       let sourceHint = "źródło: brak danych";
@@ -145,8 +145,8 @@ export async function GET() {
         const fullPayload = await fetchJson<JikanAnimeFullResponse>(`https://api.jikan.moe/v4/anime/${anime.mal_id}/full`);
         const details = fullPayload.data;
 
-        studioHint = `studio: ${cleanList((details.studios ?? []).map((studio) => studio.name), "brak danych")}`;
-        genreHint = `gatunki: ${cleanList((details.genres ?? []).map((genre) => genre.name), "brak danych")}`;
+        studioHint = `Studio: ${cleanList((details.studios ?? []).map((studio) => studio.name), "brak danych")}`;
+        genreHint = `Gatunki: ${cleanList((details.genres ?? []).map((genre) => genre.name), "brak danych")}`;
 
         const themes = cleanList((details.themes ?? []).map((theme) => theme.name), "");
         const demographics = cleanList((details.demographics ?? []).map((demographic) => demographic.name), "");
@@ -161,8 +161,8 @@ export async function GET() {
       const hintSteps = [
         studioHint,
         genreHint,
-        `rok: ${anime.year ?? "brak danych"}`,
-        `odcinki: ${anime.episodes ?? "brak danych"}`,
+        `Rok: ${anime.year ?? "brak danych"}`,
+        `Odcinki: ${anime.episodes ?? "brak danych"}`,
         extraHint,
         seasonHint,
         sourceHint,

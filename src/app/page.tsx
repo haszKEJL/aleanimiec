@@ -249,8 +249,6 @@ export default function HomePage() {
       <header className="aniguess-hero">
         <div className="aniguess-hero__left">
           <p className="aniguess-brand">AniGuess PL</p>
-          <h1 className="aniguess-title">Guess the anime from one frame</h1>
-          <p className="aniguess-subtitle">Ciemny klimat, szybkie rundy, punkty za celność. 5 prób na każdą zagadkę.</p>
         </div>
 
         <div className="aniguess-hero__right">
