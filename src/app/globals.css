@@ -78,7 +78,7 @@ a {
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, var(--accent), var(--accent-deep));
+  background: var(--accent-deep);
   border-color: #cb5c78;
 }
 
@@ -98,7 +98,7 @@ a {
   gap: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: linear-gradient(180deg, #151922, #12161d);
+  background: #12161d;
   padding: 14px;
 }
 
@@ -478,7 +478,7 @@ a {
 }
 
 .cookie-btn--primary {
-  background: linear-gradient(180deg, #f05274, #cb3d5c);
+  background: #cb3d5c;
   border-color: #f1738e;
   color: #fff;
 }
