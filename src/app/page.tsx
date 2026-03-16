@@ -16,8 +16,23 @@ type SyncStateResponse = {
   adminLastSeenAt: number | null;
 };
 
+type UploadJobStatus = "idle" | "uploading" | "converting" | "swapping" | "done" | "error";
+
+type UploadJobState = {
+  status: UploadJobStatus;
+  message: string;
+  updatedAt: number;
+  startedAt: number | null;
+  finishedAt: number | null;
+  bytesReceived: number;
+  maxBytes: number;
+  filename: string | null;
+  error: string | null;
+};
+
 const HOME_EPISODE_ID = "episode-1";
 const ADMIN_CLIENT_ID_STORAGE_KEY = "aleanimiec_admin_client_id";
+const CLIENT_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 
 export default function HomePage() {
   const episodeId = HOME_EPISODE_ID;
@@ -31,9 +46,14 @@ export default function HomePage() {
   const [syncState, setSyncState] = useState<SyncStateResponse | null>(null);
   const [, setSyncError] = useState("");
   const [videoElement, setVideoElement] = useState<HTMLVideoElement | null>(null);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadState, setUploadState] = useState<UploadJobState | null>(null);
+  const [isStartingUpload, setIsStartingUpload] = useState(false);
   const lastAdminSyncAtRef = useRef(0);
   const lastStreamRefreshAtRef = useRef(0);
   const pendingResumeTimeRef = useRef<number | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
+  const lastUploadDoneAtRef = useRef<number | null>(null);
 
   const isAdmin = Boolean(adminSecret);
   const fetchSignedUrl = useCallback(async () => {
@@ -280,7 +300,107 @@ export default function HomePage() {
 
     setAdminSecret("");
     setSyncError("");
+    setUploadFile(null);
   };
+
+  const fetchUploadState = useCallback(async () => {
+    if (!adminSecret) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/admin/upload", {
+        method: "GET",
+        headers: {
+          "x-admin-password": adminSecret,
+        },
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = (await response.json()) as UploadJobState;
+      setUploadState(payload);
+    } catch {
+      // best effort polling
+    }
+  }, [adminSecret]);
+
+  const handleUploadSubmit = useCallback(async () => {
+    if (!isAdmin || !adminSecret || !uploadFile) {
+      return;
+    }
+
+    if (uploadFile.size > CLIENT_MAX_UPLOAD_BYTES) {
+      setUploadState({
+        status: "error",
+        message: "Upload nieudany.",
+        updatedAt: Date.now(),
+        startedAt: Date.now(),
+        finishedAt: Date.now(),
+        bytesReceived: uploadFile.size,
+        maxBytes: CLIENT_MAX_UPLOAD_BYTES,
+        filename: uploadFile.name,
+        error: "Plik przekracza 500MB.",
+      });
+      return;
+    }
+
+    setIsStartingUpload(true);
+
+    try {
+      const response = await fetch("/api/admin/upload", {
+        method: "POST",
+        headers: {
+          "x-admin-password": adminSecret,
+          "x-file-name": uploadFile.name,
+          "content-type": uploadFile.type || "application/octet-stream",
+        },
+        body: uploadFile,
+      });
+
+      if (response.ok) {
+        const payload = (await response.json()) as UploadJobState;
+        setUploadState(payload);
+        setUploadFile(null);
+        if (uploadInputRef.current) {
+          uploadInputRef.current.value = "";
+        }
+        return;
+      }
+
+      const payload = (await response.json()) as { error?: string; state?: UploadJobState };
+      setUploadState(
+        payload.state || {
+          status: "error",
+          message: "Upload nieudany.",
+          updatedAt: Date.now(),
+          startedAt: Date.now(),
+          finishedAt: Date.now(),
+          bytesReceived: 0,
+          maxBytes: CLIENT_MAX_UPLOAD_BYTES,
+          filename: uploadFile.name,
+          error: payload.error || "Nie udało się wrzucić pliku.",
+        },
+      );
+    } catch {
+      setUploadState({
+        status: "error",
+        message: "Upload nieudany.",
+        updatedAt: Date.now(),
+        startedAt: Date.now(),
+        finishedAt: Date.now(),
+        bytesReceived: 0,
+        maxBytes: CLIENT_MAX_UPLOAD_BYTES,
+        filename: uploadFile.name,
+        error: "Błąd sieci podczas uploadu.",
+      });
+    } finally {
+      setIsStartingUpload(false);
+    }
+  }, [adminSecret, isAdmin, uploadFile]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -358,6 +478,33 @@ export default function HomePage() {
   }, [isAdmin, pushAdminSyncState, videoElement]);
 
   useEffect(() => {
+    if (!isAdmin || !adminSecret) {
+      return;
+    }
+
+    void fetchUploadState();
+
+    const interval = setInterval(() => {
+      void fetchUploadState();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [adminSecret, fetchUploadState, isAdmin]);
+
+  useEffect(() => {
+    if (!uploadState || uploadState.status !== "done" || !uploadState.finishedAt) {
+      return;
+    }
+
+    if (lastUploadDoneAtRef.current === uploadState.finishedAt) {
+      return;
+    }
+
+    lastUploadDoneAtRef.current = uploadState.finishedAt;
+    void refreshSignedUrl();
+  }, [refreshSignedUrl, uploadState]);
+
+  useEffect(() => {
     if (!videoElement || isAdmin || !syncState) {
       return;
     }
@@ -398,6 +545,13 @@ export default function HomePage() {
     return null;
   }
 
+  const uploadInProgress =
+    uploadState?.status === "uploading" || uploadState?.status === "converting" || uploadState?.status === "swapping";
+  const uploadProgressPercent =
+    uploadState && uploadState.maxBytes > 0
+      ? Math.min(100, Math.round((uploadState.bytesReceived / uploadState.maxBytes) * 100))
+      : 0;
+
   return (
     <section style={{ display: "grid", gap: 12 }}>
       <div style={{ display: "flex", justifyContent: "center", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
@@ -427,9 +581,40 @@ export default function HomePage() {
               <button type="button" className="btn" onClick={() => void handleAdminLogout()}>
                 Wyłącz admina
               </button>
+
+              <input
+                ref={uploadInputRef}
+                type="file"
+                accept="video/mp4,video/x-m4v,video/quicktime,video/*"
+                onChange={(event) => {
+                  setUploadFile(event.target.files?.[0] ?? null);
+                }}
+                style={{
+                  maxWidth: 220,
+                  color: "#f3f4f6",
+                }}
+              />
+
+              <button
+                type="button"
+                className="btn"
+                onClick={() => void handleUploadSubmit()}
+                disabled={!uploadFile || uploadInProgress || isStartingUpload}
+                style={{ opacity: !uploadFile || uploadInProgress || isStartingUpload ? 0.6 : 1 }}
+              >
+                {isStartingUpload ? "Wysyłanie..." : "Wrzuć odcinek"}
+              </button>
             </>
           )}
         </div>
+
+        {isAdmin && uploadState ? (
+          <span className="muted" style={{ width: "100%", textAlign: "center" }}>
+            Upload: {uploadState.message}
+            {uploadState.status === "uploading" ? ` (${uploadProgressPercent}%)` : ""}
+            {uploadState.error ? ` — ${uploadState.error}` : ""}
+          </span>
+        ) : null}
       </div>
 
       <VideoPlayer

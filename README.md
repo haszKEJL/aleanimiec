@@ -9,6 +9,7 @@ MVP platformy do odtwarzania odcinków HLS, gdzie:
 - Node.js 20+
 - npm
 - działający serwer origin z plikami HLS (HTTPS)
+- `ffmpeg` (wymagany do konwersji uploadowanego pliku `.mp4` do HLS)
 
 ## Zmienne środowiskowe
 Skopiuj `.env.example` do `.env.local` i uzupełnij:
@@ -19,6 +20,9 @@ Skopiuj `.env.example` do `.env.local` i uzupełnij:
 - `ACCESS_PASSWORD` – hasło wejścia na stronę
 - `ACCESS_SESSION_SECRET` – sekret do podpisu cookie dostępu
 - `NEXT_PUBLIC_APP_NAME` – opcjonalna nazwa aplikacji
+- `UPLOAD_HLS_DIR` – katalog z aktywnym odcinkiem HLS na serwerze, np. `/srv/hls`
+- `UPLOAD_EPISODE_DIR` – katalog odcinka podmienianego przez upload, domyślnie `episode-1`
+- `UPLOAD_TMP_DIR` – katalog roboczy dla uploadu i konwersji, np. `/tmp/aleanimiec-upload`
 
 ## Uruchomienie lokalne
 1. Instalacja zależności:
@@ -59,6 +63,7 @@ Skopiuj `.env.example` do `.env.local` i uzupełnij:
   - rate limiting in-memory (best effort)
 - `POST /api/access-login` – logowanie hasłem wejścia
 - `GET|POST /api/sync-state` – synchronizacja odtwarzania + 1 admin
+- `GET|POST /api/admin/upload` – upload pliku admina (max 500MB), konwersja `ffmpeg`, podmiana odcinka
 
 ## Bezpieczeństwo MVP
 - Token ważny maksymalnie 5 minut (`300s`).
@@ -81,10 +86,18 @@ Wydajność zależy głównie od uploadu Twojego łącza domowego.
 - `src/app/api/stream-url/route.ts` – signed URL + rate limit
 - `src/app/api/access-login/route.ts` – ustawienie cookie dostępu
 - `src/app/api/sync-state/route.ts` – stan sesji odtwarzania (admin/viewer)
+- `src/app/api/admin/upload/route.ts` – upload + konwersja + podmiana aktywnego odcinka
 - `src/components/VideoPlayer.tsx` – odtwarzacz HLS (`hls.js` + fallback natywny)
 - `src/data/episodes.ts` – statyczny katalog odcinków
+- `src/lib/admin-upload.ts` – pamięć statusu uploadu i blokada równoległych jobów
 - `src/lib/signing.ts` – HMAC SHA-256 sign/verify helper
 - `.env.example`
+
+## Upload odcinka z panelu admina (VPS)
+- Po zalogowaniu admina możesz wybrać plik `.mp4` i kliknąć `Wrzuć odcinek`.
+- Backend zapisuje plik na serwerze, konwertuje do HLS (`master.m3u8` + segmenty) i podmienia katalog aktywnego odcinka.
+- Poprzedni odcinek jest usuwany po udanej podmianie.
+- Wymagane jest działające `ffmpeg` w systemie (`ffmpeg -version`).
 
 ## Uwaga operacyjna
 To MVP bez CDN i bez rozproszonego rate-limitingu. Przy większym ruchu ograniczeniem będzie origin domowy i jego upload.
