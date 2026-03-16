@@ -29,7 +29,7 @@ export default function AccessPage() {
         return;
       }
 
-      router.replace("/");
+      router.replace("/aleanimiec");
       router.refresh();
     } catch {
       setError("Błąd połączenia.");

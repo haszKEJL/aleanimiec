@@ -56,14 +56,15 @@ Skopiuj `.env.example` do `.env.local` i uzupełnij:
   - `${VIDEO_ORIGIN_BASE_URL}/hls/<episode>/master.m3u8?exp=<unix>&token=<hmac_hex>`
 
 ## Zaimplementowane endpointy i strony
-- `GET /` – główny ekran odtwarzania (jeden odcinek)
-- `GET /watch/[episodeId]` – redirect do `/`
+- `GET /` – główna strona AniGuess (dane MAL przez Jikan)
+- `GET /aleanimiec` – ekran streamingu + admin
+- `GET /watch/[episodeId]` – redirect do `/aleanimiec`
 - `GET /api/stream-url?episodeId=...` – signed URL
   - `404` dla nieznanego odcinka
   - walidacja `episodeId`
   - rate limiting in-memory (best effort)
 - `POST /api/access-login` – logowanie hasłem wejścia
-- `GET|POST /api/sync-state` – synchronizacja odtwarzania + 1 admin
+- `GET|POST /api/sync-state` – synchronizacja odtwarzania + 1 admin (timeout nieaktywności 30 min, takeover przy nowym logowaniu)
 - `GET|POST /api/admin/upload` – upload pliku admina (max 500MB), konwersja `ffmpeg`, podmiana odcinka
 
 ## Bezpieczeństwo MVP
@@ -80,7 +81,9 @@ API na Vercel tylko autoryzuje i podpisuje URL. Transfer wideo idzie bezpośredn
 Wydajność zależy głównie od uploadu Twojego łącza domowego.
 
 ## Struktura
-- `src/app/page.tsx` – główny ekran odtwarzania
+- `src/app/page.tsx` – publiczna strona główna AniGuess (MAL/Jikan)
+- `src/app/aleanimiec/page.tsx` – ekran streamingu
+- `src/components/StreamAdminView.tsx` – panel streamingu/admina
 - `src/app/access/page.tsx` – strona hasła dostępu
 - `src/middleware.ts` – wymuszenie hasła wejścia (cookie HttpOnly)
 - `src/app/watch/[episodeId]/page.tsx` – redirect do `/`

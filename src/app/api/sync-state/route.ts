@@ -20,6 +20,8 @@ type SyncBody = {
   adminClientId?: string;
 };
 
+const ADMIN_INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
+
 declare global {
   var __episodeSyncStore: Map<string, EpisodeSyncState> | undefined;
 }
@@ -63,6 +65,21 @@ function sanitizeAdminClientId(value: string): string {
   return value.trim().slice(0, 120);
 }
 
+function hasAdminSessionExpired(state: EpisodeSyncState): boolean {
+  if (!state.adminClientId || !state.adminLastSeenAt) {
+    return false;
+  }
+
+  return Date.now() - state.adminLastSeenAt > ADMIN_INACTIVITY_TIMEOUT_MS;
+}
+
+function applyAdminInactivityTimeout(state: EpisodeSyncState): void {
+  if (hasAdminSessionExpired(state)) {
+    clearAdminLock(state);
+    state.updatedAt = Date.now();
+  }
+}
+
 export async function GET(request: NextRequest) {
   const episodeId = request.nextUrl.searchParams.get("episodeId")?.trim() || "";
 
@@ -74,7 +91,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Episode not found" }, { status: 404 });
   }
 
-  return NextResponse.json(getOrCreateSyncState(episodeId));
+  const state = getOrCreateSyncState(episodeId);
+  applyAdminInactivityTimeout(state);
+  syncStore.set(episodeId, state);
+  return NextResponse.json(state);
 }
 
 export async function POST(request: NextRequest) {
@@ -95,6 +115,7 @@ export async function POST(request: NextRequest) {
   }
 
   const state = getOrCreateSyncState(episodeId);
+  applyAdminInactivityTimeout(state);
   const adminPassword = process.env.ADMIN_SYNC_PASSWORD;
 
   if (!adminPassword) {
@@ -111,10 +132,6 @@ export async function POST(request: NextRequest) {
   if (action === "login") {
     if ((body.adminPassword || "") !== adminPassword) {
       return NextResponse.json({ error: "Invalid admin password" }, { status: 403 });
-    }
-
-    if (state.adminClientId && state.adminClientId !== adminClientId) {
-      return NextResponse.json({ error: "Another admin is already active" }, { status: 409 });
     }
 
     state.adminClientId = adminClientId;

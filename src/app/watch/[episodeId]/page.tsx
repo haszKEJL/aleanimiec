@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function WatchEpisodeRedirectPage() {
-  redirect("/");
+  redirect("/aleanimiec");
 }

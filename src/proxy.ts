@@ -43,7 +43,7 @@ async function hasValidAccessCookie(request: NextRequest): Promise<boolean> {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname === "/access" || pathname.startsWith("/api/access-login")) {
+  if (pathname === "/" || pathname === "/access" || pathname.startsWith("/api/access-login")) {
     return NextResponse.next();
   }
 
