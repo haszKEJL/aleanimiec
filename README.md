@@ -56,7 +56,7 @@ Skopiuj `.env.example` do `.env.local` i uzupełnij:
   - `${VIDEO_ORIGIN_BASE_URL}/hls/<episode>/master.m3u8?exp=<unix>&token=<hmac_hex>`
 
 ## Zaimplementowane endpointy i strony
-- `GET /` – główna strona AniGuess (dane MAL przez Jikan)
+- `GET /` – screenshot guesser anime (losowanie z top 5000 MAL)
 - `GET /aleanimiec` – ekran streamingu + admin
 - `GET /watch/[episodeId]` – redirect do `/aleanimiec`
 - `GET /api/stream-url?episodeId=...` – signed URL
@@ -65,6 +65,8 @@ Skopiuj `.env.example` do `.env.local` i uzupełnij:
   - rate limiting in-memory (best effort)
 - `POST /api/access-login` – logowanie hasłem wejścia
 - `GET|POST /api/sync-state` – synchronizacja odtwarzania + 1 admin (timeout nieaktywności 30 min, takeover przy nowym logowaniu)
+- `GET /api/aniguess/round` – losowanie rundy (MAL/Jikan)
+- `POST /api/aniguess/guess` – sprawdzenie odpowiedzi + punktacja
 - `GET|POST /api/admin/upload` – upload pliku admina (max 500MB), konwersja `ffmpeg`, podmiana odcinka
 
 ## Bezpieczeństwo MVP
@@ -82,6 +84,9 @@ Wydajność zależy głównie od uploadu Twojego łącza domowego.
 
 ## Struktura
 - `src/app/page.tsx` – publiczna strona główna AniGuess (MAL/Jikan)
+- `src/app/api/aniguess/round/route.ts` – tworzenie rundy guessera
+- `src/app/api/aniguess/guess/route.ts` – ocena odpowiedzi i punkty
+- `src/lib/aniguess-store.ts` – pamięć rund i scoring similarity
 - `src/app/aleanimiec/page.tsx` – ekran streamingu
 - `src/components/StreamAdminView.tsx` – panel streamingu/admina
 - `src/app/access/page.tsx` – strona hasła dostępu

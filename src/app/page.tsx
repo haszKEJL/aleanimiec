@@ -1,92 +1,185 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useMemo, useState } from "react";
 
-type JikanAnime = {
-  mal_id: number;
-  title: string;
-  title_english?: string | null;
-  synopsis?: string | null;
-  score?: number | null;
-  episodes?: number | null;
-  year?: number | null;
-  images?: {
-    jpg?: {
-      image_url?: string;
-      large_image_url?: string;
-    };
+type RoundPayload = {
+  roundId: string;
+  imageUrl: string;
+  hints: {
+    score: number | null;
+    episodes: number | null;
+    year: number | null;
+    rank: number | null;
   };
+  maxAttempts: number;
 };
 
-type JikanTopAnimeResponse = {
-  data: JikanAnime[];
+type GuessPayload = {
+  correct: boolean;
+  finished: boolean;
+  revealed: boolean;
+  pointsAwarded: number;
+  attemptsUsed: number;
+  remainingAttempts: number;
+  similarity: number;
+  answer: {
+    title: string;
+    malUrl: string;
+    malId: number;
+  } | null;
 };
 
-function normalizeTitle(title: string): string {
-  return title
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "");
-}
+type GuessHistoryItem = {
+  text: string;
+  similarity: number;
+  correct: boolean;
+};
 
 export default function HomePage() {
-  const [animeList, setAnimeList] = useState<JikanAnime[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [round, setRound] = useState<RoundPayload | null>(null);
+  const [loadingRound, setLoadingRound] = useState(false);
+  const [guessing, setGuessing] = useState(false);
   const [error, setError] = useState("");
   const [guessInput, setGuessInput] = useState("");
-  const [revealed, setRevealed] = useState(false);
-  const [roundSeed, setRoundSeed] = useState(0);
+  const [lastResult, setLastResult] = useState<GuessPayload | null>(null);
+  const [history, setHistory] = useState<GuessHistoryItem[]>([]);
+  const [totalScore, setTotalScore] = useState(0);
+  const [streak, setStreak] = useState(0);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError("");
+  const loadRound = useCallback(async () => {
+    setLoadingRound(true);
+    setError("");
+    setGuessInput("");
+    setLastResult(null);
+    setHistory([]);
+
+    try {
+      const response = await fetch("/api/aniguess/round", {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        setError("Nie udało się przygotować nowej rundy.");
+        setRound(null);
+        return;
+      }
+
+      const payload = (await response.json()) as RoundPayload;
+      setRound(payload);
+    } catch {
+      setError("Błąd połączenia z API rund.");
+      setRound(null);
+    } finally {
+      setLoadingRound(false);
+    }
+  }, []);
+
+  const handleGuess = useCallback(
+    async (event: FormEvent) => {
+      event.preventDefault();
+
+      if (!round || !guessInput.trim() || guessing || (lastResult?.finished ?? false)) {
+        return;
+      }
+
+      setGuessing(true);
 
       try {
-        const response = await fetch("https://api.jikan.moe/v4/top/anime?limit=24", {
-          cache: "no-store",
+        const response = await fetch("/api/aniguess/guess", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            roundId: round.roundId,
+            guess: guessInput,
+            action: "guess",
+          }),
         });
 
         if (!response.ok) {
-          setError("Nie udało się pobrać danych z MyAnimeList.");
+          setError("Nie udało się wysłać odpowiedzi.");
           return;
         }
 
-        const payload = (await response.json()) as JikanTopAnimeResponse;
-        setAnimeList(payload.data ?? []);
+        const payload = (await response.json()) as GuessPayload;
+        setLastResult(payload);
+        setHistory((prev) => [
+          { text: guessInput.trim(), similarity: payload.similarity, correct: payload.correct },
+          ...prev,
+        ]);
+
+        if (payload.correct) {
+          setTotalScore((prev) => prev + payload.pointsAwarded);
+          setStreak((prev) => prev + 1);
+        } else if (payload.finished) {
+          setStreak(0);
+        }
+
+        setGuessInput("");
       } catch {
-        setError("Błąd połączenia z API MyAnimeList (Jikan).");
+        setError("Błąd połączenia podczas zgadywania.");
       } finally {
-        setLoading(false);
+        setGuessing(false);
       }
-    };
+    },
+    [guessInput, guessing, lastResult?.finished, round],
+  );
 
-    void load();
-  }, []);
-
-  const currentAnime = useMemo(() => {
-    if (!animeList.length) {
-      return null;
+  const revealAnswer = useCallback(async () => {
+    if (!round || guessing || (lastResult?.finished ?? false)) {
+      return;
     }
 
-    const index = Math.abs(roundSeed) % animeList.length;
-    return animeList[index];
-  }, [animeList, roundSeed]);
+    setGuessing(true);
+    try {
+      const response = await fetch("/api/aniguess/guess", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          roundId: round.roundId,
+          action: "reveal",
+        }),
+      });
 
-  const displayTitle = currentAnime?.title_english?.trim() || currentAnime?.title || "";
-  const isCorrect =
-    currentAnime &&
-    guessInput.trim().length > 0 &&
-    normalizeTitle(guessInput).includes(normalizeTitle(displayTitle));
+      if (!response.ok) {
+        setError("Nie udało się odsłonić odpowiedzi.");
+        return;
+      }
+
+      const payload = (await response.json()) as GuessPayload;
+      setLastResult(payload);
+      setStreak(0);
+    } catch {
+      setError("Błąd połączenia podczas odsłaniania odpowiedzi.");
+    } finally {
+      setGuessing(false);
+    }
+  }, [guessing, lastResult?.finished, round]);
+
+  const attemptsUsed = lastResult?.attemptsUsed ?? 0;
+  const blurPx = useMemo(() => {
+    const levels = [16, 12, 9, 6, 3, 0];
+    return levels[Math.min(attemptsUsed, levels.length - 1)];
+  }, [attemptsUsed]);
+
+  const attemptsLeft = useMemo(() => {
+    if (!round) {
+      return 0;
+    }
+
+    return lastResult ? lastResult.remainingAttempts : round.maxAttempts;
+  }, [lastResult, round]);
 
   return (
     <section style={{ display: "grid", gap: 16 }}>
       <header className="card" style={{ display: "grid", gap: 8 }}>
         <h1 style={{ margin: 0 }}>AniGuess PL</h1>
         <p className="muted" style={{ margin: 0 }}>
-          Zgadnij anime po opisie. Dane pobierane z MyAnimeList przez API Jikan.
+          Zgadnij anime po screenie. Losowanie z top 5000 MAL (Jikan API), punktacja i ocena podobieństwa jak w guesserach anime.
         </p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Link className="btn" href="/aleanimiec">
@@ -96,37 +189,56 @@ export default function HomePage() {
             type="button"
             className="btn"
             onClick={() => {
-              setRoundSeed((prev) => prev + 1);
-              setGuessInput("");
-              setRevealed(false);
+              void loadRound();
             }}
-            disabled={!animeList.length}
+            disabled={loadingRound || guessing}
           >
-            Następne anime
+            {loadingRound ? "Losowanie..." : "Nowa runda"}
           </button>
         </div>
+        <p className="muted" style={{ margin: 0 }}>
+          Punkty: {totalScore} • Streak: {streak}
+        </p>
       </header>
 
       <article className="card" style={{ display: "grid", gap: 10 }}>
-        {loading ? <p className="muted">Ładowanie danych MAL...</p> : null}
+        {!round && !loadingRound ? (
+          <button type="button" className="btn" onClick={() => void loadRound()}>
+            Start gry
+          </button>
+        ) : null}
+
+        {loadingRound ? <p className="muted">Losowanie anime z top 5000 MAL...</p> : null}
         {error ? <p className="error">{error}</p> : null}
 
-        {!loading && !error && currentAnime ? (
+        {round ? (
           <>
             <p className="muted" style={{ margin: 0 }}>
-              Podpowiedzi: {currentAnime.year ?? "brak roku"} • {currentAnime.episodes ?? "?"} odc. • ocena MAL {currentAnime.score ?? "?"}
+              Podpowiedzi: {round.hints.year ?? "brak roku"} • {round.hints.episodes ?? "?"} odc. • ocena MAL {round.hints.score ?? "?"} • ranking {round.hints.rank ?? "?"}
             </p>
 
-            <p style={{ margin: 0, lineHeight: 1.6 }}>
-              {currentAnime.synopsis?.slice(0, 700) || "Brak opisu."}
-            </p>
+            <img
+              src={round.imageUrl}
+              alt="Anime screenshot"
+              style={{
+                width: "100%",
+                maxWidth: 720,
+                justifySelf: "center",
+                aspectRatio: "16 / 9",
+                objectFit: "cover",
+                borderRadius: 12,
+                filter: `blur(${blurPx}px) brightness(0.75)`,
+                transition: "filter 180ms ease",
+              }}
+            />
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <form onSubmit={handleGuess} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
               <input
                 type="text"
                 placeholder="Wpisz tytuł anime"
                 value={guessInput}
                 onChange={(event) => setGuessInput(event.target.value)}
+                disabled={guessing || (lastResult?.finished ?? false)}
                 style={{
                   padding: 10,
                   borderRadius: 8,
@@ -136,24 +248,37 @@ export default function HomePage() {
                   minWidth: 260,
                 }}
               />
-              <button type="button" className="btn" onClick={() => setRevealed(true)}>
-                Pokaż odpowiedź
+              <button type="submit" className="btn" disabled={guessing || !guessInput.trim() || (lastResult?.finished ?? false)}>
+                {guessing ? "Sprawdzam..." : "Sprawdź"}
               </button>
-            </div>
+              <button type="button" className="btn" onClick={() => void revealAnswer()} disabled={guessing || (lastResult?.finished ?? false)}>
+                Pomiń / Pokaż odpowiedź
+              </button>
+            </form>
 
-            {isCorrect ? <p style={{ margin: 0, color: "#4ade80" }}>✅ Dobra odpowiedź!</p> : null}
+            <p className="muted" style={{ margin: 0 }}>
+              Pozostałe próby: {attemptsLeft}
+            </p>
 
-            {revealed || isCorrect ? (
+            {history.length ? (
+              <div style={{ display: "grid", gap: 6 }}>
+                {history.slice(0, 5).map((item, index) => (
+                  <p key={`${item.text}-${index}`} className="muted" style={{ margin: 0 }}>
+                    {item.correct ? "✅" : "❌"} {item.text} — podobieństwo {(item.similarity * 100).toFixed(1)}%
+                  </p>
+                ))}
+              </div>
+            ) : null}
+
+            {lastResult?.finished && lastResult.answer ? (
               <div style={{ display: "grid", gap: 8 }}>
                 <p style={{ margin: 0 }}>
-                  Tytuł: <strong>{displayTitle}</strong>
+                  Odpowiedź: <strong>{lastResult.answer.title}</strong>
                 </p>
-                <a
-                  href={`https://myanimelist.net/anime/${currentAnime.mal_id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="muted"
-                >
+                <p className="muted" style={{ margin: 0 }}>
+                  {lastResult.correct ? `+${lastResult.pointsAwarded} pkt` : "0 pkt"}
+                </p>
+                <a href={lastResult.answer.malUrl} target="_blank" rel="noreferrer" className="muted">
                   Otwórz w MyAnimeList
                 </a>
               </div>
@@ -161,42 +286,6 @@ export default function HomePage() {
           </>
         ) : null}
       </article>
-
-      {!loading && animeList.length ? (
-        <section className="card" style={{ display: "grid", gap: 10 }}>
-          <h2 style={{ margin: 0, fontSize: 20 }}>Top anime (MAL)</h2>
-          <div
-            style={{
-              display: "grid",
-              gap: 12,
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            }}
-          >
-            {animeList.slice(0, 12).map((anime) => (
-              <a
-                key={anime.mal_id}
-                href={`https://myanimelist.net/anime/${anime.mal_id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="card"
-                style={{ padding: 10, display: "grid", gap: 6 }}
-              >
-                {anime.images?.jpg?.image_url ? (
-                  <img
-                    src={anime.images.jpg.image_url}
-                    alt={anime.title}
-                    style={{ width: "100%", aspectRatio: "3 / 4", objectFit: "cover", borderRadius: 8 }}
-                  />
-                ) : null}
-                <strong style={{ fontSize: 14, lineHeight: 1.3 }}>{anime.title_english || anime.title}</strong>
-                <span className="muted" style={{ fontSize: 12 }}>
-                  MAL: {anime.score ?? "?"}
-                </span>
-              </a>
-            ))}
-          </div>
-        </section>
-      ) : null}
     </section>
   );
 }
