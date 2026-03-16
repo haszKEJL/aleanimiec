@@ -102,13 +102,20 @@ a {
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.3);
 }
 
+.aniguess-hero__left {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 200px;
+}
+
 .aniguess-brand {
   margin: 0;
   color: #ff7287;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  font-size: clamp(1.3rem, 2.2vw, 1.65rem);
 }
 
 .aniguess-title {
@@ -348,6 +355,91 @@ a {
   white-space: nowrap;
 }
 
+.aniguess-ranking-card {
+  border: 1px solid #2f3747;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #101620 0%, #0c1018 100%);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.aniguess-ranking__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.aniguess-ranking__head h2 {
+  margin: 0;
+  color: #ff8d9d;
+  text-transform: uppercase;
+  font-size: 0.96rem;
+  letter-spacing: 0.08em;
+}
+
+.aniguess-ranking__tabs {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.aniguess-tab {
+  border: 1px solid #3a4254;
+  border-radius: 8px;
+  background: #151b25;
+  color: #c9d2e4;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.aniguess-tab--active {
+  border-color: #b94a5f;
+  color: #ffe2e8;
+  background: #20131a;
+}
+
+.aniguess-ranking-table {
+  border: 1px solid #343d50;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.aniguess-ranking-row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1.4fr) 0.8fr 0.8fr 0.7fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  background: #121823;
+  border-bottom: 1px solid #2e3648;
+  color: #dce5f6;
+  font-size: 0.88rem;
+}
+
+.aniguess-ranking-row:last-child {
+  border-bottom: none;
+}
+
+.aniguess-ranking-row--head {
+  background: #171e2a;
+  color: #aeb9cf;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.aniguess-ranking-row span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cookie-banner {
   position: fixed;
   left: 18px;
@@ -441,6 +533,10 @@ a {
     gap: 10px;
   }
 
+  .aniguess-hero__left {
+    min-width: 0;
+  }
+
   .aniguess-hero__right {
     justify-content: flex-start;
   }
@@ -453,6 +549,12 @@ a {
 
   .aniguess-input-row {
     grid-template-columns: 1fr;
+  }
+
+  .aniguess-ranking-row {
+    grid-template-columns: 40px minmax(0, 1fr) 0.8fr 0.75fr 0.6fr;
+    gap: 6px;
+    font-size: 0.82rem;
   }
 
   .cookie-banner {
