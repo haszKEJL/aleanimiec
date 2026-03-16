@@ -65,7 +65,14 @@ function runFfmpeg(inputPath: string, outputDir: string): Promise<void> {
     const ffmpeg = spawn(
       "ffmpeg",
       [
+        "-hide_banner",
+        "-loglevel",
+        "error",
         "-y",
+        "-analyzeduration",
+        "100M",
+        "-probesize",
+        "100M",
         "-i",
         inputPath,
         "-c:v",
@@ -110,6 +117,15 @@ function runFfmpeg(inputPath: string, outputDir: string): Promise<void> {
       }
 
       const details = stderrLines.join("\n");
+      if (/moov atom not found|Invalid data found when processing input/i.test(details)) {
+        reject(
+          new Error(
+            "Plik ma niekompatybilny lub uszkodzony kontener dla ffmpeg (częste dla DVR MP4). Przekonwertuj plik lokalnie do standardowego MP4 (H.264 + AAC), a potem wrzuć ponownie.",
+          ),
+        );
+        return;
+      }
+
       reject(new Error(`ffmpeg zakończył się kodem ${code}. ${details}`.trim()));
     });
   });
