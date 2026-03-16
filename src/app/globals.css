@@ -15,10 +15,12 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background:
-    radial-gradient(1300px 760px at 90% -24%, #2a1016 0%, transparent 58%),
-    radial-gradient(900px 500px at 0% -20%, #11162a 0%, transparent 52%),
-    var(--bg);
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(78vmax 46vmax at 104% -18%, rgba(130, 24, 43, 0.34) 0%, rgba(130, 24, 43, 0.18) 24%, transparent 68%),
+    radial-gradient(66vmax 38vmax at -8% -22%, rgba(31, 47, 92, 0.38) 0%, rgba(31, 47, 92, 0.18) 28%, transparent 70%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--text);
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 }
