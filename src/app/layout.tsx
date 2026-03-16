@@ -5,7 +5,7 @@ const appName = process.env.NEXT_PUBLIC_APP_NAME || "Streaming Odcinków";
 
 export const metadata: Metadata = {
   title: appName,
-  description: "MVP platformy streamingowej z podpisywanymi URL HLS",
+  description: "AniGuess PL: zgaduj anime po screenach i rywalizuj punktami.",
 };
 
 export default function RootLayout({

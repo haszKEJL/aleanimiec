@@ -32,7 +32,7 @@ export function normalizeGuessText(value: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]/g, "");
+    .replace(/[^\p{L}\p{N}]/gu, "");
 }
 
 function levenshteinDistance(left: string, right: string): number {

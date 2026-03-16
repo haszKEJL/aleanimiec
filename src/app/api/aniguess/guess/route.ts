@@ -77,11 +77,11 @@ export async function POST(request: NextRequest) {
       return true;
     }
 
-    if (guess.length >= 4 && title.includes(guess)) {
+    if (guess.length >= 2 && title.includes(guess)) {
       return true;
     }
 
-    if (title.length >= 4 && guess.includes(title)) {
+    if (title.length >= 2 && guess.includes(title)) {
       return true;
     }
 
