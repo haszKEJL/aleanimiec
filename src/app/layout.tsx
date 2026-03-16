@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import CookieConsentBanner from "@/components/CookieConsentBanner";
 
 const appName = process.env.NEXT_PUBLIC_APP_NAME || "Streaming Odcinków";
 
@@ -17,6 +18,7 @@ export default function RootLayout({
     <html lang="pl">
       <body>
         <main className="container">{children}</main>
+        <CookieConsentBanner />
       </body>
     </html>
   );
