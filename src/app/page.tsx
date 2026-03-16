@@ -247,9 +247,8 @@ export default function HomePage() {
   return (
     <section className="aniguess-root">
       <header className="aniguess-hero">
-        <div className="aniguess-hero__left">
-          <p className="aniguess-brand">AniGuess PL</p>
-        </div>
+        <div className="aniguess-hero__spacer" aria-hidden="true" />
+        <p className="aniguess-brand aniguess-brand--center">AniGuess</p>
 
         <div className="aniguess-hero__right">
           <div className="aniguess-pill">

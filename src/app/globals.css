@@ -91,9 +91,9 @@ a {
 }
 
 .aniguess-hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
   gap: 14px;
   border: 1px solid #252a3a;
   border-radius: 16px;
@@ -102,9 +102,8 @@ a {
   box-shadow: 0 20px 44px rgba(0, 0, 0, 0.42);
 }
 
-.aniguess-hero__left {
-  display: grid;
-  gap: 6px;
+.aniguess-hero__spacer {
+  min-height: 1px;
 }
 
 .aniguess-brand {
@@ -114,6 +113,11 @@ a {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-size: 0.88rem;
+}
+
+.aniguess-brand--center {
+  justify-self: center;
+  text-align: center;
 }
 
 .aniguess-title {
@@ -132,6 +136,7 @@ a {
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+  justify-self: end;
 }
 
 .aniguess-pill {
@@ -359,12 +364,22 @@ a {
   }
 
   .aniguess-hero {
-    flex-direction: column;
-    align-items: stretch;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 10px;
+  }
+
+  .aniguess-hero__spacer {
+    display: none;
+  }
+
+  .aniguess-brand--center {
+    justify-self: center;
   }
 
   .aniguess-hero__right {
-    justify-content: flex-start;
+    justify-self: center;
+    justify-content: center;
   }
 }
 
