@@ -22,6 +22,18 @@ type JikanAnimeEntry = {
   };
 };
 
+type JikanAnimeFullResponse = {
+  data: {
+    studios?: Array<{ name?: string }>;
+    genres?: Array<{ name?: string }>;
+    themes?: Array<{ name?: string }>;
+    demographics?: Array<{ name?: string }>;
+    season?: string | null;
+    source?: string | null;
+    rating?: string | null;
+  };
+};
+
 type JikanTopResponse = {
   data: JikanAnimeEntry[];
 };
@@ -71,6 +83,15 @@ function pickRandom<T>(items: T[]): T {
   return items[Math.floor(Math.random() * items.length)];
 }
 
+function cleanList(values: Array<string | undefined | null>, fallback: string): string {
+  const items = values.map((value) => (value || "").trim()).filter(Boolean);
+  if (!items.length) {
+    return fallback;
+  }
+
+  return items.slice(0, 3).join(", ");
+}
+
 export async function GET() {
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
@@ -114,6 +135,39 @@ export async function GET() {
 
       const displayTitle = anime.title_english?.trim() || anime.title;
 
+      let studioHint = "studio: brak danych";
+      let genreHint = "gatunki: brak danych";
+      let extraHint = "motyw: brak danych";
+      let seasonHint = "sezon: brak danych";
+      let sourceHint = "źródło: brak danych";
+
+      try {
+        const fullPayload = await fetchJson<JikanAnimeFullResponse>(`https://api.jikan.moe/v4/anime/${anime.mal_id}/full`);
+        const details = fullPayload.data;
+
+        studioHint = `studio: ${cleanList((details.studios ?? []).map((studio) => studio.name), "brak danych")}`;
+        genreHint = `gatunki: ${cleanList((details.genres ?? []).map((genre) => genre.name), "brak danych")}`;
+
+        const themes = cleanList((details.themes ?? []).map((theme) => theme.name), "");
+        const demographics = cleanList((details.demographics ?? []).map((demographic) => demographic.name), "");
+        extraHint = `motyw: ${themes || demographics || "brak danych"}`;
+
+        seasonHint = `sezon: ${details.season ? details.season : "brak danych"}`;
+        sourceHint = `źródło: ${details.source?.trim() || "brak danych"}`;
+      } catch {
+        // keep fallback hints
+      }
+
+      const hintSteps = [
+        studioHint,
+        genreHint,
+        `rok: ${anime.year ?? "brak danych"}`,
+        `odcinki: ${anime.episodes ?? "brak danych"}`,
+        extraHint,
+        seasonHint,
+        sourceHint,
+      ];
+
       const round = createRound({
         maxAttempts: MAX_ATTEMPTS,
         normalizedTitles,
@@ -121,6 +175,7 @@ export async function GET() {
         malId: anime.mal_id,
         malUrl: anime.url || `https://myanimelist.net/anime/${anime.mal_id}`,
         imageUrl,
+        hintSteps,
         score: anime.score ?? null,
         episodes: anime.episodes ?? null,
         year: anime.year ?? null,
@@ -130,6 +185,7 @@ export async function GET() {
       return NextResponse.json({
         roundId: round.id,
         imageUrl: round.imageUrl,
+        hintStepsCount: round.hintSteps.length,
         hints: {
           score: round.score,
           episodes: round.episodes,

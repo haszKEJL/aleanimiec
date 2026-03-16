@@ -6,6 +6,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 type RoundPayload = {
   roundId: string;
   imageUrl: string;
+  hintStepsCount: number;
   hints: {
     score: number | null;
     episodes: number | null;
@@ -23,6 +24,7 @@ type GuessPayload = {
   attemptsUsed: number;
   remainingAttempts: number;
   similarity: number;
+  revealedHints: string[];
   answer: {
     title: string;
     malUrl: string;
@@ -214,9 +216,11 @@ export default function HomePage() {
     return lastResult ? lastResult.remainingAttempts : round.maxAttempts;
   }, [lastResult, round]);
 
+  const revealedHints = lastResult?.revealedHints ?? [];
+
   return (
-    <section style={{ display: "grid", gap: 16 }}>
-      <header className="card" style={{ display: "grid", gap: 10, borderColor: "#16181d", background: "#08090b" }}>
+    <section style={{ display: "grid", gap: 18 }}>
+      <header className="card" style={{ display: "grid", gap: 10, borderColor: "#1a1d25", background: "linear-gradient(180deg,#0b0d12,#07080b)" }}>
         <h1 style={{ margin: 0 }}>AniGuess PL</h1>
         <p className="muted" style={{ margin: 0 }}>
           Zgadnij anime po screenie. Masz 5 prób i zdobywasz punkty za szybką poprawną odpowiedź.
@@ -237,11 +241,11 @@ export default function HomePage() {
           </button>
         </div>
         <p className="muted" style={{ margin: 0 }}>
-          Punkty: {totalScore} • Seria: {streak}
+          Punkty: {totalScore} • Seria: {streak} • Podpowiedzi do odkrycia: {round ? Math.max(round.hintStepsCount - revealedHints.length, 0) : 0}
         </p>
       </header>
 
-      <article className="card" style={{ display: "grid", gap: 12, borderColor: "#16181d", background: "#0a0b0f" }}>
+      <article className="card" style={{ display: "grid", gap: 14, borderColor: "#1a1d25", background: "linear-gradient(180deg,#0d1017,#090b11)" }}>
         {!round && !loadingRound ? (
           <button type="button" className="btn" onClick={() => void loadRound()}>
             Start gry
@@ -254,7 +258,7 @@ export default function HomePage() {
         {round ? (
           <>
             <p className="muted" style={{ margin: 0 }}>
-              Podpowiedzi: {round.hints.year ?? "brak roku"} • {round.hints.episodes ?? "?"} odc. • ocena MAL {round.hints.score ?? "?"} • ranking {round.hints.rank ?? "?"}
+              Szybkie info: {round.hints.year ?? "brak roku"} • {round.hints.episodes ?? "?"} odc. • ocena MAL {round.hints.score ?? "?"} • ranking {round.hints.rank ?? "?"}
             </p>
 
             <img
@@ -269,7 +273,8 @@ export default function HomePage() {
                 borderRadius: 12,
                 filter: `blur(${blurPx}px) brightness(0.75)`,
                 transition: "filter 180ms ease",
-                border: "1px solid #1f232d",
+                border: "1px solid #262b36",
+                boxShadow: "0 12px 30px rgba(0,0,0,0.45)",
               }}
             />
 
@@ -284,7 +289,7 @@ export default function HomePage() {
                   style={{
                     padding: 10,
                     borderRadius: 8,
-                    border: "1px solid #232633",
+                    border: "1px solid #2b3040",
                     background: "#0d0f14",
                     color: "#f3f4f6",
                     minWidth: 280,
@@ -306,7 +311,7 @@ export default function HomePage() {
                     gap: 6,
                     flexWrap: "wrap",
                     padding: 8,
-                    border: "1px solid #1d212c",
+                    border: "1px solid #262b36",
                     borderRadius: 8,
                     background: "#0b0d12",
                   }}
@@ -333,6 +338,30 @@ export default function HomePage() {
             <p className="muted" style={{ margin: 0 }}>
               Pozostałe próby: {attemptsLeft}
             </p>
+
+            {revealedHints.length ? (
+              <div
+                style={{
+                  display: "grid",
+                  gap: 6,
+                  border: "1px solid #262b36",
+                  borderRadius: 10,
+                  padding: 10,
+                  background: "#0b0d12",
+                }}
+              >
+                <strong style={{ fontSize: 14 }}>Podpowiedzi odblokowane po błędnych odpowiedziach:</strong>
+                {revealedHints.map((hint, index) => (
+                  <span key={`${hint}-${index}`} className="muted">
+                    {index + 1}. {hint}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="muted" style={{ margin: 0 }}>
+                Błędna odpowiedź odblokowuje kolejną podpowiedź (studio, gatunki, sezon itd.).
+              </p>
+            )}
 
             {history.length ? (
               <div style={{ display: "grid", gap: 6 }}>

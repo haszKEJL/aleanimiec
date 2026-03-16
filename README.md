@@ -56,7 +56,7 @@ Skopiuj `.env.example` do `.env.local` i uzupełnij:
   - `${VIDEO_ORIGIN_BASE_URL}/hls/<episode>/master.m3u8?exp=<unix>&token=<hmac_hex>`
 
 ## Zaimplementowane endpointy i strony
-- `GET /` – screenshot guesser anime (losowanie z top 5000 MAL, EN/JP, podpowiedzi tytułów)
+- `GET /` – screenshot guesser anime (losowanie z top 5000 MAL, EN/JP, podpowiedzi tytułów i hinty po błędnych próbach)
 - `GET /aleanimiec` – ekran streamingu + admin
 - `GET /watch/[episodeId]` – redirect do `/aleanimiec`
 - `GET /api/stream-url?episodeId=...` – signed URL

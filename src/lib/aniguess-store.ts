@@ -4,12 +4,14 @@ export type AniGuessRound = {
   id: string;
   createdAt: number;
   attemptsUsed: number;
+  wrongAttemptsUsed: number;
   maxAttempts: number;
   normalizedTitles: string[];
   displayTitle: string;
   malId: number;
   malUrl: string;
   imageUrl: string;
+  hintSteps: string[];
   score: number | null;
   episodes: number | null;
   year: number | null;
@@ -87,7 +89,7 @@ export function cleanupExpiredRounds(): void {
   }
 }
 
-export function createRound(data: Omit<AniGuessRound, "id" | "createdAt" | "attemptsUsed">): AniGuessRound {
+export function createRound(data: Omit<AniGuessRound, "id" | "createdAt" | "attemptsUsed" | "wrongAttemptsUsed">): AniGuessRound {
   cleanupExpiredRounds();
 
   const round: AniGuessRound = {
@@ -95,6 +97,7 @@ export function createRound(data: Omit<AniGuessRound, "id" | "createdAt" | "atte
     id: randomUUID(),
     createdAt: Date.now(),
     attemptsUsed: 0,
+    wrongAttemptsUsed: 0,
   };
 
   rounds.set(round.id, round);

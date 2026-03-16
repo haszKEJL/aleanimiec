@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
         malId: round.malId,
       },
       similarity: 0,
+      revealedHints: round.hintSteps,
     });
   }
 
@@ -89,6 +90,9 @@ export async function POST(request: NextRequest) {
   });
 
   const correct = exactish || similarity >= 0.92;
+  if (!correct) {
+    round.wrongAttemptsUsed += 1;
+  }
   const finished = correct || round.attemptsUsed >= round.maxAttempts;
   const pointsAwarded = correct ? POINTS_BY_ATTEMPT[Math.min(round.attemptsUsed - 1, POINTS_BY_ATTEMPT.length - 1)] : 0;
 
@@ -102,6 +106,7 @@ export async function POST(request: NextRequest) {
     attemptsUsed: round.attemptsUsed,
     remainingAttempts: Math.max(round.maxAttempts - round.attemptsUsed, 0),
     similarity,
+    revealedHints: round.hintSteps.slice(0, Math.min(round.wrongAttemptsUsed, round.hintSteps.length)),
     answer: finished
       ? {
           title: round.displayTitle,
