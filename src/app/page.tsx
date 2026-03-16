@@ -41,24 +41,6 @@ type SuggestPayload = {
   suggestions: string[];
 };
 
-type RankingScope = "daily" | "weekly" | "alltime";
-
-type RankingEntry = {
-  position: number;
-  displayName: string;
-  points: number;
-  rounds: number;
-  correctRounds: number;
-  accuracy: number;
-  bestRound: number;
-};
-
-type RankingResponse = {
-  scope: RankingScope;
-  entries: RankingEntry[];
-  error?: string;
-};
-
 export default function HomePage() {
   const [round, setRound] = useState<RoundPayload | null>(null);
   const [loadingRound, setLoadingRound] = useState(false);
@@ -71,10 +53,6 @@ export default function HomePage() {
   const [streak, setStreak] = useState(0);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  const [rankingScope, setRankingScope] = useState<RankingScope>("alltime");
-  const [rankingEntries, setRankingEntries] = useState<RankingEntry[]>([]);
-  const [rankingLoading, setRankingLoading] = useState(false);
-  const [rankingError, setRankingError] = useState("");
 
   const loadRound = useCallback(async () => {
     setLoadingRound(true);
@@ -103,34 +81,6 @@ export default function HomePage() {
   useEffect(() => {
     void loadRound();
   }, [loadRound]);
-
-  const loadRanking = useCallback(async (scope: RankingScope) => {
-    setRankingLoading(true);
-    setRankingError("");
-
-    try {
-      const response = await fetch(`/api/aniguess/ranking?scope=${scope}&limit=10`, {
-        cache: "no-store",
-      });
-
-      const payload = (await response.json()) as RankingResponse;
-
-      if (!response.ok) {
-        throw new Error(payload.error || "Nie udało się pobrać rankingu");
-      }
-
-      setRankingEntries(payload.entries ?? []);
-    } catch (rankingLoadError) {
-      setRankingEntries([]);
-      setRankingError(rankingLoadError instanceof Error ? rankingLoadError.message : "Nie udało się pobrać rankingu");
-    } finally {
-      setRankingLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadRanking(rankingScope);
-  }, [loadRanking, rankingScope]);
 
   useEffect(() => {
     if (!round || guessInput.trim().length < 2 || (lastResult?.finished ?? false)) {
@@ -424,67 +374,6 @@ export default function HomePage() {
           )}
         </aside>
       </main>
-
-      <section className="aniguess-ranking-card">
-        <div className="aniguess-ranking__head">
-          <h2>Ranking</h2>
-          <div className="aniguess-ranking__tabs">
-            <button
-              type="button"
-              className={`aniguess-tab ${rankingScope === "daily" ? "aniguess-tab--active" : ""}`}
-              onClick={() => setRankingScope("daily")}
-              disabled={rankingLoading}
-            >
-              Daily
-            </button>
-            <button
-              type="button"
-              className={`aniguess-tab ${rankingScope === "weekly" ? "aniguess-tab--active" : ""}`}
-              onClick={() => setRankingScope("weekly")}
-              disabled={rankingLoading}
-            >
-              Weekly
-            </button>
-            <button
-              type="button"
-              className={`aniguess-tab ${rankingScope === "alltime" ? "aniguess-tab--active" : ""}`}
-              onClick={() => setRankingScope("alltime")}
-              disabled={rankingLoading}
-            >
-              All-time
-            </button>
-          </div>
-        </div>
-
-        {rankingLoading ? <p className="muted">Ładowanie rankingu...</p> : null}
-        {rankingError ? <p className="error">{rankingError}</p> : null}
-
-        {!rankingLoading && !rankingError ? (
-          rankingEntries.length ? (
-            <div className="aniguess-ranking-table">
-              <div className="aniguess-ranking-row aniguess-ranking-row--head">
-                <span>#</span>
-                <span>Gracz</span>
-                <span>Punkty</span>
-                <span>Skuteczność</span>
-                <span>Best</span>
-              </div>
-
-              {rankingEntries.map((entry) => (
-                <div key={`${entry.displayName}-${entry.position}`} className="aniguess-ranking-row">
-                  <span>{entry.position}</span>
-                  <span>{entry.displayName}</span>
-                  <span>{entry.points}</span>
-                  <span>{(entry.accuracy * 100).toFixed(0)}%</span>
-                  <span>{entry.bestRound}</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="muted">Brak wyników w tym zakresie czasu.</p>
-          )
-        ) : null}
-      </section>
     </section>
   );
 }
