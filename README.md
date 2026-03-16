@@ -23,6 +23,7 @@ Skopiuj `.env.example` do `.env.local` i uzupełnij:
 - `UPLOAD_HLS_DIR` – katalog z aktywnym odcinkiem HLS na serwerze, np. `/srv/hls`
 - `UPLOAD_EPISODE_DIR` – katalog odcinka podmienianego przez upload, domyślnie `episode-1`
 - `UPLOAD_TMP_DIR` – katalog roboczy dla uploadu i konwersji, np. `/tmp/aleanimiec-upload`
+- `UPLOAD_TMP_MAX_AGE_MS` – po ilu ms usuwać stare katalogi tymczasowe uploadu (domyślnie `21600000`, czyli 6h)
 
 ## Uruchomienie lokalne
 1. Instalacja zależności:
@@ -97,6 +98,8 @@ Wydajność zależy głównie od uploadu Twojego łącza domowego.
 - Po zalogowaniu admina możesz wybrać plik `.mp4` i kliknąć `Wrzuć odcinek`.
 - Backend zapisuje plik na serwerze, konwertuje do HLS (`master.m3u8` + segmenty) i podmienia katalog aktywnego odcinka.
 - Poprzedni odcinek jest usuwany po udanej podmianie.
+- Dla części plików DVR backend automatycznie próbuje fallback konwersji wejścia (`mpegts`) zanim zwróci błąd.
+- Stare katalogi tymczasowe uploadu są automatycznie czyszczone co ~6 godzin.
 - Wymagane jest działające `ffmpeg` w systemie (`ffmpeg -version`).
 
 ## Uwaga operacyjna
