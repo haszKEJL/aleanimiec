@@ -1,5 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getRound, normalizeGuessText, saveRound, similarityScore } from "@/lib/aniguess-store";
+import { getPlayerCookieName, recordGuessEvent, recordRevealEvent } from "@/lib/aniguess-ranking-db";
 
 export const runtime = "nodejs";
 
@@ -10,6 +12,34 @@ type GuessBody = {
 };
 
 const POINTS_BY_ATTEMPT = [1000, 750, 550, 350, 200];
+const PLAYER_COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
+
+function resolvePlayerKey(request: NextRequest): { key: string; shouldSetCookie: boolean } {
+  const cookieName = getPlayerCookieName();
+  const fromCookie = request.cookies.get(cookieName)?.value?.trim() || "";
+
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(fromCookie)) {
+    return { key: fromCookie, shouldSetCookie: false };
+  }
+
+  return { key: randomUUID(), shouldSetCookie: true };
+}
+
+function setPlayerCookie(response: NextResponse, playerKey: string, shouldSetCookie: boolean): void {
+  if (!shouldSetCookie) {
+    return;
+  }
+
+  response.cookies.set({
+    name: getPlayerCookieName(),
+    value: playerKey,
+    path: "/",
+    maxAge: PLAYER_COOKIE_MAX_AGE_SECONDS,
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+  });
+}
 
 function bestSimilarity(guess: string, titles: string[]): number {
   let best = 0;
@@ -26,6 +56,7 @@ function bestSimilarity(guess: string, titles: string[]): number {
 
 export async function POST(request: NextRequest) {
   let body: GuessBody;
+  const player = resolvePlayerKey(request);
 
   try {
     body = (await request.json()) as GuessBody;
@@ -46,7 +77,7 @@ export async function POST(request: NextRequest) {
   const action = body.action || "guess";
 
   if (action === "reveal") {
-    return NextResponse.json({
+    const response = NextResponse.json({
       correct: false,
       finished: true,
       revealed: true,
@@ -61,6 +92,20 @@ export async function POST(request: NextRequest) {
       similarity: 0,
       revealedHints: round.hintSteps,
     });
+
+    setPlayerCookie(response, player.key, player.shouldSetCookie);
+
+    try {
+      await recordRevealEvent({
+        playerKey: player.key,
+        roundId,
+        attemptsUsed: round.attemptsUsed,
+      });
+    } catch (error) {
+      console.error("[aniguess] failed to persist reveal event", error);
+    }
+
+    return response;
   }
 
   const guessRaw = body.guess?.trim() || "";
@@ -98,7 +143,7 @@ export async function POST(request: NextRequest) {
 
   saveRound(round);
 
-  return NextResponse.json({
+  const response = NextResponse.json({
     correct,
     finished,
     revealed: finished && !correct,
@@ -115,4 +160,24 @@ export async function POST(request: NextRequest) {
         }
       : null,
   });
+
+  setPlayerCookie(response, player.key, player.shouldSetCookie);
+
+  try {
+    await recordGuessEvent({
+      playerKey: player.key,
+      roundId,
+      guessText: guessRaw,
+      attemptNo: round.attemptsUsed,
+      similarity,
+      correct,
+      finished,
+      pointsAwarded,
+      revealed: finished && !correct,
+    });
+  } catch (error) {
+    console.error("[aniguess] failed to persist guess event", error);
+  }
+
+  return response;
 }

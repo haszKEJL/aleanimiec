@@ -28,54 +28,59 @@ Skopiuj `.env.example` do `.env.local` i uzupełnij:
 ## Uruchomienie lokalne
 1. Instalacja zależności:
    ```bash
-   npm install
-   ```
-2. Utwórz plik `.env.local` z wymaganymi zmiennymi.
-3. Start dev server:
-   ```bash
-   npm run dev
-   ```
-4. Otwórz: `http://localhost:3000`
-
-## Deploy na Vercel
+ - `DATABASE_URL` – połączenie do Postgresa (zalecane lokalnie na VPS), np. `postgresql://aniguess_user:haslo@127.0.0.1:5432/aniguess`
+ - `DATABASE_SSL` – `true` tylko gdy łączysz się do zewnętrznego Postgresa po TLS
+ - `DATABASE_SSL_REJECT_UNAUTHORIZED` – domyślnie `true`; ustaw `false` tylko gdy świadomie używasz self-signed cert
 1. Wypchnij repozytorium do GitHub.
 2. Zaimportuj projekt w Vercel.
-3. W ustawieniach projektu dodaj env:
-   - `VIDEO_ORIGIN_BASE_URL`
-   - `STREAM_SIGNING_SECRET`
-  - `ADMIN_SYNC_PASSWORD`
   - `ACCESS_PASSWORD`
   - `ACCESS_SESSION_SECRET`
    - opcjonalnie `NEXT_PUBLIC_APP_NAME`
-4. Wykonaj deploy.
-
-## Jak wskazać `VIDEO_ORIGIN_BASE_URL`
-- To adres publiczny Twojego domowego serwera video (najlepiej HTTPS), np.:
-  - `https://video.example.com`
-- Endpoint API generuje URL:
+ - `GET /api/aniguess/ranking?scope=alltime|weekly|daily&limit=25` – ranking punktów z Postgresa
   - `${VIDEO_ORIGIN_BASE_URL}/hls/<episode>/master.m3u8?exp=<unix>&token=<hmac_hex>`
 
-## Zaimplementowane endpointy i strony
-- `GET /` – screenshot guesser anime (losowanie z top 5000 MAL, EN/JP, podpowiedzi tytułów i hinty po błędnych próbach)
-- `GET /aleanimiec` – ekran streamingu + admin
-- `GET /watch/[episodeId]` – redirect do `/aleanimiec`
-- `GET /api/stream-url?episodeId=...` – signed URL
-  - `404` dla nieznanego odcinka
-  - walidacja `episodeId`
-  - rate limiting in-memory (best effort)
-- `POST /api/access-login` – logowanie hasłem wejścia
-- `GET|POST /api/sync-state` – synchronizacja odtwarzania + 1 admin (timeout nieaktywności 30 min, takeover przy nowym logowaniu)
-- `GET /api/aniguess/round` – losowanie rundy (MAL/Jikan)
-- `POST /api/aniguess/guess` – sprawdzenie odpowiedzi + punktacja
-- `GET /api/aniguess/suggest?query=...` – podpowiedzi tytułów do inputa
-- `GET|POST /api/admin/upload` – upload pliku admina (max 500MB), konwersja `ffmpeg`, podmiana odcinka
-
-## Bezpieczeństwo MVP
-- Token ważny maksymalnie 5 minut (`300s`).
-- Sekret podpisu jest używany tylko po stronie serwera.
 - API waliduje `episodeId` przed podpisaniem URL.
 - Endpoint `/api/stream-url` ma prosty rate limit in-memory.
 
+
+## PostgreSQL na tym samym VPS (minimum kosztów + bezpieczeństwo)
+
+1. Zainstaluj Postgresa na VPS:
+  ```bash
+  sudo apt update
+  sudo apt install -y postgresql postgresql-contrib
+  ```
+
+2. Utwórz użytkownika i bazę:
+  ```bash
+  sudo -u postgres psql -c "CREATE USER aniguess_user WITH PASSWORD 'MOCNE_HASLO';"
+  sudo -u postgres psql -c "CREATE DATABASE aniguess OWNER aniguess_user;"
+  sudo -u postgres psql -c "REVOKE ALL ON DATABASE aniguess FROM PUBLIC;"
+  ```
+
+3. Zastosuj schemat:
+  ```bash
+  sudo -u postgres psql -d aniguess -f /srv/aleanimiec/db/aniguess-ranking.sql
+  ```
+
+4. W `.env.local` ustaw:
+  ```bash
+  DATABASE_URL=postgresql://aniguess_user:MOCNE_HASLO@127.0.0.1:5432/aniguess
+  DATABASE_SSL=false
+  DATABASE_SSL_REJECT_UNAUTHORIZED=true
+  ```
+
+5. Hardening (ważne):
+  - nie wystawiaj portu `5432` publicznie,
+  - trzymaj `listen_addresses = 'localhost'` w `postgresql.conf`,
+  - w `pg_hba.conf` zostaw dostęp lokalny (`127.0.0.1/32`),
+  - rób backupy `pg_dump` (np. cron raz dziennie).
+
+6. Restart Postgresa po zmianach konfiguracyjnych:
+  ```bash
+  sudo systemctl restart postgresql
+  sudo systemctl status postgresql --no-pager
+  ```
 ## Przepływ ruchu
 API na Vercel tylko autoryzuje i podpisuje URL. Transfer wideo idzie bezpośrednio:
 
