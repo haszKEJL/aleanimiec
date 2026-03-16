@@ -111,6 +111,8 @@ function runFfmpeg(inputPath: string, outputDir: string): Promise<void> {
       playlistPath,
     ];
 
+    const repairedInputPath = path.join(outputDir, "repaired-input.mp4");
+
     const primaryArgs = [
       "-hide_banner",
       "-loglevel",
@@ -145,6 +147,48 @@ function runFfmpeg(inputPath: string, outputDir: string): Promise<void> {
       ...baseOutputArgs,
     ];
 
+    const repairPassArgs = [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-analyzeduration",
+      "200M",
+      "-probesize",
+      "200M",
+      "-fflags",
+      "+genpts+discardcorrupt",
+      "-err_detect",
+      "ignore_err",
+      "-i",
+      inputPath,
+      "-map",
+      "0:v:0?",
+      "-map",
+      "0:a:0?",
+      "-c:v",
+      "libx264",
+      "-c:a",
+      "aac",
+      "-movflags",
+      "+faststart",
+      repairedInputPath,
+    ];
+
+    const hlsFromRepairedArgs = [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-analyzeduration",
+      "100M",
+      "-probesize",
+      "100M",
+      "-i",
+      repairedInputPath,
+      ...baseOutputArgs,
+    ];
+
     const isContainerIssue = (details: string) => /moov atom not found|Invalid data found when processing input/i.test(details);
 
     void (async () => {
@@ -161,10 +205,26 @@ function runFfmpeg(inputPath: string, outputDir: string): Promise<void> {
           return;
         }
 
+        const repairPass = await runOnce(repairPassArgs);
+        if (repairPass.code === 0) {
+          const hlsFromRepaired = await runOnce(hlsFromRepairedArgs);
+          if (hlsFromRepaired.code === 0) {
+            resolve();
+            return;
+          }
+
+          reject(
+            new Error(
+              `ffmpeg (po automatycznej naprawie MP4) zakończył się kodem ${hlsFromRepaired.code}. ${hlsFromRepaired.details}`.trim(),
+            ),
+          );
+          return;
+        }
+
         if (isContainerIssue(fallback.details)) {
           reject(
             new Error(
-              "Plik ma niekompatybilny kontener dla ffmpeg. Spróbowałem automatycznej naprawy (DVR fallback), ale się nie powiodła. Przekonwertuj plik lokalnie do standardowego MP4 (H.264 + AAC) i wrzuć ponownie.",
+              "Plik ma niekompatybilny kontener dla ffmpeg. Spróbowałem automatycznej naprawy (DVR fallback + repair pass), ale się nie powiodła. Przekonwertuj plik lokalnie do standardowego MP4 (H.264 + AAC) i wrzuć ponownie.",
             ),
           );
           return;
