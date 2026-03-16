@@ -3,8 +3,8 @@
   --bg: #0a0a0c;
   --surface: #1a1b1f;
   --surface-soft: #23242a;
-  --line: #2f3138;
-  --line-soft: #2b2d34;
+  --line: rgba(255, 255, 255, 0.04);
+  --line-soft: rgba(255, 255, 255, 0.035);
   --text: #f2f2f5;
   --muted: #a8abb3;
   --accent: #f35e85;
@@ -43,7 +43,7 @@ a {
 
 .card {
   background: var(--surface);
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: 6px;
   padding: 12px;
 }
@@ -59,7 +59,7 @@ a {
 .btn {
   background: var(--surface-soft);
   color: var(--text);
-  border: 1px solid #3a3c44;
+  border: 1px solid transparent;
   border-radius: 6px;
   padding: 10px 13px;
   font-weight: 600;
@@ -69,7 +69,7 @@ a {
 
 .btn:hover:not(:disabled) {
   filter: brightness(1.08);
-  border-color: #4a4d58;
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 .btn:disabled {
@@ -79,7 +79,7 @@ a {
 
 .btn-primary {
   background: var(--accent-deep);
-  border-color: #d06a86;
+  border-color: transparent;
 }
 
 .btn-ghost {
@@ -96,9 +96,9 @@ a {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: 6px;
-  background: #18191d;
+  background: #131419;
   padding: 14px;
 }
 
@@ -122,8 +122,8 @@ a {
 }
 
 .aniguess-pill {
-  border: 1px solid #3c3f48;
-  background: #23252c;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #202229;
   border-radius: 6px;
   padding: 6px 10px;
   display: inline-flex;
@@ -146,9 +146,9 @@ a {
 .aniguess-main-card,
 .aniguess-side-card,
 .aniguess-ranking-card {
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: 6px;
-  background: var(--surface);
+  background: #191b21;
   box-shadow: none;
 }
 
@@ -189,8 +189,8 @@ a {
 }
 
 .aniguess-mini-meta span {
-  border: 1px solid #383b44;
-  background: #22242b;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #20232a;
   color: #c4c6ce;
   border-radius: 6px;
   font-size: 0.78rem;
@@ -199,7 +199,7 @@ a {
 
 .aniguess-frame {
   margin: 0;
-  border: 1px solid #32353d;
+  border: 1px solid transparent;
   border-radius: 6px;
   overflow: hidden;
   background: #0b0e14;
@@ -227,9 +227,9 @@ a {
 }
 
 .aniguess-guess-form {
-  border: 1px solid var(--line-soft);
+  border: 1px solid transparent;
   border-radius: 6px;
-  background: #1b1f27;
+  background: #171a21;
   padding: 10px;
   display: grid;
   gap: 8px;
@@ -243,9 +243,9 @@ a {
 
 .aniguess-input {
   width: 100%;
-  border: 1px solid #3b3f49;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
-  background: #232730;
+  background: #1f232d;
   color: #eff3fc;
   padding: 11px 12px;
   font-size: 0.95rem;
@@ -258,9 +258,9 @@ a {
 }
 
 .aniguess-suggestions {
-  border: 1px solid #343840;
+  border: 1px solid transparent;
   border-radius: 6px;
-  background: #20242c;
+  background: #1b1f28;
   padding: 8px;
   display: flex;
   gap: 7px;
@@ -268,8 +268,8 @@ a {
 }
 
 .aniguess-chip {
-  border: 1px solid #40444f;
-  background: #282c34;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #232833;
   color: #dce4f5;
   border-radius: 6px;
   padding: 6px 10px;
@@ -283,9 +283,9 @@ a {
 }
 
 .aniguess-result {
-  border: 1px solid #5b3b4a;
+  border: 1px solid transparent;
   border-radius: 6px;
-  background: #231a21;
+  background: #211920;
   padding: 10px;
 }
 
@@ -318,9 +318,9 @@ a {
 
 .aniguess-hints-list li,
 .aniguess-history-list li {
-  border: 1px solid #353941;
+  border: 1px solid transparent;
   border-radius: 6px;
-  background: #22262e;
+  background: #1f232c;
   padding: 8px 9px;
   color: #d5deef;
 }
@@ -360,9 +360,9 @@ a {
 }
 
 .aniguess-tab {
-  border: 1px solid #3a3d47;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 6px;
-  background: #262a33;
+  background: #242833;
   color: #c8d2e3;
   padding: 6px 10px;
   font-size: 0.82rem;
@@ -372,11 +372,11 @@ a {
 .aniguess-tab--active {
   border-color: #b25067;
   color: #ffe2e8;
-  background: #39212a;
+  background: #41242d;
 }
 
 .aniguess-ranking-table {
-  border: 1px solid #333740;
+  border: 1px solid transparent;
   border-radius: 6px;
   overflow: hidden;
 }
@@ -387,8 +387,8 @@ a {
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
-  background: #22262e;
-  border-bottom: 1px solid #333841;
+  background: #1f232c;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   color: #dce5f6;
   font-size: 0.88rem;
 }
@@ -398,7 +398,7 @@ a {
 }
 
 .aniguess-ranking-row--head {
-  background: #2a2f38;
+  background: #242933;
   color: #aeb9cf;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -413,9 +413,9 @@ a {
   bottom: 18px;
   z-index: 1200;
   width: min(640px, calc(100vw - 30px));
-  border: 1px solid #32363f;
+  border: 1px solid transparent;
   border-radius: 6px;
-  background: #1c2028;
+  background: #1a1e26;
   box-shadow: none;
   padding: 10px;
   display: grid;
@@ -430,9 +430,9 @@ a {
 }
 
 .cookie-banner__manage {
-  border: 1px solid #3a3f4a;
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 6px;
-  background: #242932;
+  background: #212630;
   padding: 10px;
   display: grid;
   gap: 6px;
@@ -461,8 +461,8 @@ a {
 
 .cookie-btn {
   border-radius: 6px;
-  border: 1px solid #3a3f4b;
-  background: #2a2f38;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #272c36;
   color: #f1f5ff;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -474,13 +474,13 @@ a {
 
 .cookie-btn--ghost {
   color: #ff8ca0;
-  border-color: #9e576d;
+  border-color: rgba(255, 140, 160, 0.45);
 }
 
 .cookie-btn--primary {
   color: #fff;
   background: #c64b6a;
-  border-color: #de7f99;
+  border-color: transparent;
 }
 
 .cookie-btn:hover {
