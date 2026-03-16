@@ -203,10 +203,15 @@ export default function HomePage() {
   }, [guessInput, lastResult?.finished]);
 
   const attemptsUsed = lastResult?.attemptsUsed ?? 0;
+  const revealImage = Boolean(lastResult?.correct || lastResult?.revealed || (lastResult?.finished && lastResult?.answer));
   const blurPx = useMemo(() => {
+    if (revealImage) {
+      return 0;
+    }
+
     const levels = [16, 12, 9, 6, 3, 0];
     return levels[Math.min(attemptsUsed, levels.length - 1)];
-  }, [attemptsUsed]);
+  }, [attemptsUsed, revealImage]);
 
   const attemptsLeft = useMemo(() => {
     if (!round) {
@@ -219,13 +224,39 @@ export default function HomePage() {
   const revealedHints = lastResult?.revealedHints ?? [];
 
   return (
-    <section style={{ display: "grid", gap: 18 }}>
-      <header className="card" style={{ display: "grid", gap: 10, borderColor: "#1a1d25", background: "linear-gradient(180deg,#0b0d12,#07080b)" }}>
-        <h1 style={{ margin: 0 }}>AniGuess PL</h1>
-        <p className="muted" style={{ margin: 0 }}>
+    <section style={{ display: "grid", gap: 20 }}>
+      <header
+        className="card"
+        style={{
+          display: "grid",
+          gap: 12,
+          borderColor: "#1f2431",
+          background: "linear-gradient(180deg,#0f1219,#090b11)",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            width: 280,
+            height: 280,
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(124,180,255,0.16), transparent 70%)",
+            top: -120,
+            right: -90,
+            pointerEvents: "none",
+          }}
+        />
+
+        <div style={{ display: "grid", gap: 4 }}>
+          <h1 style={{ margin: 0, fontSize: 34, letterSpacing: 0.2 }}>AniGuess PL</h1>
+          <p className="muted" style={{ margin: 0 }}>
           Zgadnij anime po screenie. Masz 5 prób i zdobywasz punkty za szybką poprawną odpowiedź.
-        </p>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <Link className="btn" href="/aleanimiec">
             Przejdź do streamu
           </Link>
@@ -239,15 +270,40 @@ export default function HomePage() {
           >
             {loadingRound ? "Losowanie..." : "Nowa runda"}
           </button>
+
+          <div
+            style={{
+              marginLeft: "auto",
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              justifyContent: "flex-end",
+            }}
+          >
+            <span className="muted" style={{ padding: "6px 10px", border: "1px solid #232a39", borderRadius: 999, background: "#0d1118" }}>
+              Punkty: <strong style={{ color: "#f3f4f6" }}>{totalScore}</strong>
+            </span>
+            <span className="muted" style={{ padding: "6px 10px", border: "1px solid #232a39", borderRadius: 999, background: "#0d1118" }}>
+              Seria: <strong style={{ color: "#f3f4f6" }}>{streak}</strong>
+            </span>
+            <span className="muted" style={{ padding: "6px 10px", border: "1px solid #232a39", borderRadius: 999, background: "#0d1118" }}>
+              Hinty: <strong style={{ color: "#f3f4f6" }}>{round ? Math.max(round.hintStepsCount - revealedHints.length, 0) : 0}</strong>
+            </span>
+          </div>
         </div>
-        <p className="muted" style={{ margin: 0 }}>
-          Punkty: {totalScore} • Seria: {streak} • Podpowiedzi do odkrycia: {round ? Math.max(round.hintStepsCount - revealedHints.length, 0) : 0}
-        </p>
       </header>
 
-      <article className="card" style={{ display: "grid", gap: 14, borderColor: "#1a1d25", background: "linear-gradient(180deg,#0d1017,#090b11)" }}>
+      <article
+        className="card"
+        style={{
+          display: "grid",
+          gap: 16,
+          borderColor: "#1d2230",
+          background: "linear-gradient(180deg,#0f1219,#090b11)",
+        }}
+      >
         {!round && !loadingRound ? (
-          <button type="button" className="btn" onClick={() => void loadRound()}>
+          <button type="button" className="btn" onClick={() => void loadRound()} style={{ justifySelf: "start" }}>
             Start gry
           </button>
         ) : null}
@@ -257,28 +313,49 @@ export default function HomePage() {
 
         {round ? (
           <>
-            <p className="muted" style={{ margin: 0 }}>
-              Szybkie info: {round.hints.year ?? "brak roku"} • {round.hints.episodes ?? "?"} odc. • ocena MAL {round.hints.score ?? "?"} • ranking {round.hints.rank ?? "?"}
-            </p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <span className="muted" style={{ padding: "6px 10px", border: "1px solid #273042", borderRadius: 999, background: "#0c1118" }}>
+                Rok: {round.hints.year ?? "brak"}
+              </span>
+              <span className="muted" style={{ padding: "6px 10px", border: "1px solid #273042", borderRadius: 999, background: "#0c1118" }}>
+                Odcinki: {round.hints.episodes ?? "?"}
+              </span>
+              <span className="muted" style={{ padding: "6px 10px", border: "1px solid #273042", borderRadius: 999, background: "#0c1118" }}>
+                MAL: {round.hints.score ?? "?"}
+              </span>
+              <span className="muted" style={{ padding: "6px 10px", border: "1px solid #273042", borderRadius: 999, background: "#0c1118" }}>
+                Rank: {round.hints.rank ?? "?"}
+              </span>
+            </div>
 
             <img
               src={round.imageUrl}
               alt="Anime screenshot"
               style={{
                 width: "100%",
-                maxWidth: 720,
+                maxWidth: 900,
                 justifySelf: "center",
                 aspectRatio: "16 / 9",
                 objectFit: "cover",
-                borderRadius: 12,
-                filter: `blur(${blurPx}px) brightness(0.75)`,
-                transition: "filter 180ms ease",
-                border: "1px solid #262b36",
-                boxShadow: "0 12px 30px rgba(0,0,0,0.45)",
+                borderRadius: 16,
+                filter: revealImage ? "none" : `blur(${blurPx}px) brightness(0.74) saturate(0.9)`,
+                transition: "filter 220ms ease",
+                border: "1px solid #2a3242",
+                boxShadow: "0 18px 40px rgba(0,0,0,0.5)",
               }}
             />
 
-            <form onSubmit={handleGuess} style={{ display: "grid", gap: 8 }}>
+            <form
+              onSubmit={handleGuess}
+              style={{
+                display: "grid",
+                gap: 10,
+                border: "1px solid #22293a",
+                borderRadius: 12,
+                padding: 12,
+                background: "#0b0f16",
+              }}
+            >
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <input
                   type="text"
@@ -289,8 +366,8 @@ export default function HomePage() {
                   style={{
                     padding: 10,
                     borderRadius: 8,
-                    border: "1px solid #2b3040",
-                    background: "#0d0f14",
+                    border: "1px solid #343b4f",
+                    background: "#10141d",
                     color: "#f3f4f6",
                     minWidth: 280,
                     flex: 1,
@@ -311,9 +388,9 @@ export default function HomePage() {
                     gap: 6,
                     flexWrap: "wrap",
                     padding: 8,
-                    border: "1px solid #262b36",
+                    border: "1px solid #2c3446",
                     borderRadius: 8,
-                    background: "#0b0d12",
+                    background: "#0f141e",
                   }}
                 >
                   {loadingSuggestions ? <span className="muted">Szukam tytułów...</span> : null}
@@ -344,10 +421,10 @@ export default function HomePage() {
                 style={{
                   display: "grid",
                   gap: 6,
-                  border: "1px solid #262b36",
+                  border: "1px solid #2b3344",
                   borderRadius: 10,
                   padding: 10,
-                  background: "#0b0d12",
+                  background: "#0f131c",
                 }}
               >
                 <strong style={{ fontSize: 14 }}>Podpowiedzi odblokowane po błędnych odpowiedziach:</strong>
@@ -364,7 +441,7 @@ export default function HomePage() {
             )}
 
             {history.length ? (
-              <div style={{ display: "grid", gap: 6 }}>
+              <div style={{ display: "grid", gap: 6, borderTop: "1px solid #21293a", paddingTop: 10 }}>
                 {history.slice(0, 5).map((item, index) => (
                   <p key={`${item.text}-${index}`} className="muted" style={{ margin: 0 }}>
                     {item.correct ? "✅" : "❌"} {item.text} — podobieństwo {(item.similarity * 100).toFixed(1)}%
@@ -374,7 +451,7 @@ export default function HomePage() {
             ) : null}
 
             {lastResult?.finished && lastResult.answer ? (
-              <div style={{ display: "grid", gap: 8 }}>
+              <div style={{ display: "grid", gap: 8, borderTop: "1px solid #21293a", paddingTop: 12 }}>
                 <p style={{ margin: 0 }}>
                   Odpowiedź: <strong>{lastResult.answer.title}</strong>
                 </p>

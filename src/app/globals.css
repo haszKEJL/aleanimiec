@@ -4,7 +4,7 @@
   --card: #0b0d12;
   --muted: #9ca3af;
   --text: #f3f4f6;
-  --accent: #7cb4ff;
+  --accent: #89bcff;
   --danger: #ff7f7f;
 }
 
@@ -27,9 +27,9 @@ a {
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 24px;
+  padding: 28px;
 }
 
 .card {
@@ -45,18 +45,20 @@ a {
 }
 
 .btn {
-  background: var(--accent);
+  background: linear-gradient(180deg, #9ac6ff 0%, #78b1ff 100%);
   color: #0b1020;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 10px 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 120ms ease, opacity 120ms ease;
+  transition: transform 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
+  box-shadow: 0 6px 16px rgba(72, 126, 210, 0.35);
 }
 
 .btn:hover:not(:disabled) {
   transform: translateY(-1px);
+  box-shadow: 0 9px 20px rgba(72, 126, 210, 0.4);
 }
 
 .btn:disabled {
