@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 type RoundPayload = {
@@ -64,76 +63,117 @@ export default function HomePage() {
     setSuggestions([]);
 
     try {
-      const response = await fetch("/api/aniguess/round", {
-        cache: "no-store",
-      });
-
+      const response = await fetch("/api/aniguess/round", { cache: "no-store" });
       if (!response.ok) {
-        setError("Nie udało się przygotować nowej rundy.");
-        setRound(null);
-        return;
+        throw new Error("Nie udało się pobrać rundy");
       }
 
       const payload = (await response.json()) as RoundPayload;
       setRound(payload);
-    } catch {
-      setError("Błąd połączenia z API rund.");
+    } catch (loadError) {
       setRound(null);
+      setError(loadError instanceof Error ? loadError.message : "Nie udało się pobrać rundy");
     } finally {
       setLoadingRound(false);
     }
   }, []);
 
-  const handleGuess = useCallback(
-    async (event: FormEvent) => {
-      event.preventDefault();
+  useEffect(() => {
+    void loadRound();
+  }, [loadRound]);
 
-      if (!round || !guessInput.trim() || guessing || (lastResult?.finished ?? false)) {
+  useEffect(() => {
+    if (!round || guessInput.trim().length < 2 || (lastResult?.finished ?? false)) {
+      setSuggestions([]);
+      setLoadingSuggestions(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(async () => {
+      setLoadingSuggestions(true);
+
+      try {
+        const response = await fetch(`/api/aniguess/suggest?query=${encodeURIComponent(guessInput.trim())}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+
+        if (!response.ok) {
+          setSuggestions([]);
+          return;
+        }
+
+        const payload = (await response.json()) as SuggestPayload;
+        setSuggestions(payload.suggestions ?? []);
+      } catch {
+        if (!controller.signal.aborted) {
+          setSuggestions([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingSuggestions(false);
+        }
+      }
+    }, 220);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timeout);
+    };
+  }, [guessInput, round, lastResult?.finished]);
+
+  const submitGuess = useCallback(
+    async (guessText: string) => {
+      if (!round) {
+        return;
+      }
+
+      const trimmed = guessText.trim();
+      if (!trimmed) {
         return;
       }
 
       setGuessing(true);
+      setError("");
 
       try {
         const response = await fetch("/api/aniguess/guess", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             roundId: round.roundId,
-            guess: guessInput,
             action: "guess",
+            guess: trimmed,
           }),
         });
 
-        if (!response.ok) {
-          setError("Nie udało się wysłać odpowiedzi.");
-          return;
+        const payload = (await response.json()) as GuessPayload | { error?: string };
+
+        if (!response.ok || "error" in payload) {
+          throw new Error("error" in payload && payload.error ? payload.error : "Nie udało się sprawdzić odpowiedzi");
         }
 
-        const payload = (await response.json()) as GuessPayload;
-        setLastResult(payload);
-        setHistory((prev) => [
-          { text: guessInput.trim(), similarity: payload.similarity, correct: payload.correct },
-          ...prev,
-        ]);
+        const result = payload as GuessPayload;
 
-        if (payload.correct) {
-          setTotalScore((prev) => prev + payload.pointsAwarded);
-          setStreak((prev) => prev + 1);
-        } else if (payload.finished) {
+        setLastResult(result);
+        setSuggestions([]);
+        setGuessInput("");
+        setHistory((previous) => [{ text: trimmed, similarity: result.similarity, correct: result.correct }, ...previous]);
+
+        if (result.correct) {
+          setTotalScore((current) => current + result.pointsAwarded);
+          setStreak((current) => current + 1);
+        } else if (result.finished) {
           setStreak(0);
         }
-
-        setGuessInput("");
-      } catch {
-        setError("Błąd połączenia podczas zgadywania.");
+      } catch (submitError) {
+        setError(submitError instanceof Error ? submitError.message : "Nie udało się sprawdzić odpowiedzi");
       } finally {
         setGuessing(false);
       }
     },
-    [guessInput, guessing, lastResult?.finished, round],
+    [round],
   );
 
   const revealAnswer = useCallback(async () => {
@@ -142,330 +182,200 @@ export default function HomePage() {
     }
 
     setGuessing(true);
+    setError("");
+
     try {
       const response = await fetch("/api/aniguess/guess", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           roundId: round.roundId,
           action: "reveal",
         }),
       });
 
-      if (!response.ok) {
-        setError("Nie udało się odsłonić odpowiedzi.");
-        return;
+      const payload = (await response.json()) as GuessPayload | { error?: string };
+
+      if (!response.ok || "error" in payload) {
+        throw new Error("error" in payload && payload.error ? payload.error : "Nie udało się odkryć odpowiedzi");
       }
 
-      const payload = (await response.json()) as GuessPayload;
-      setLastResult(payload);
+      const result = payload as GuessPayload;
+
+      setLastResult(result);
       setStreak(0);
-    } catch {
-      setError("Błąd połączenia podczas odsłaniania odpowiedzi.");
+      setSuggestions([]);
+    } catch (revealError) {
+      setError(revealError instanceof Error ? revealError.message : "Nie udało się odkryć odpowiedzi");
     } finally {
       setGuessing(false);
     }
-  }, [guessing, lastResult?.finished, round]);
+  }, [round, guessing, lastResult?.finished]);
 
-  useEffect(() => {
-    const term = guessInput.trim();
-    if (term.length < 2 || (lastResult?.finished ?? false)) {
-      setSuggestions([]);
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      void (async () => {
-        setLoadingSuggestions(true);
-        try {
-          const response = await fetch(`/api/aniguess/suggest?query=${encodeURIComponent(term)}`, {
-            cache: "no-store",
-          });
-
-          if (!response.ok) {
-            setSuggestions([]);
-            return;
-          }
-
-          const payload = (await response.json()) as SuggestPayload;
-          setSuggestions(payload.suggestions ?? []);
-        } catch {
-          setSuggestions([]);
-        } finally {
-          setLoadingSuggestions(false);
-        }
-      })();
-    }, 180);
-
-    return () => clearTimeout(timeoutId);
-  }, [guessInput, lastResult?.finished]);
-
-  const attemptsUsed = lastResult?.attemptsUsed ?? 0;
-  const revealImage = Boolean(lastResult?.correct || lastResult?.revealed || (lastResult?.finished && lastResult?.answer));
-  const blurPx = useMemo(() => {
-    if (revealImage) {
-      return 0;
-    }
-
-    const levels = [16, 12, 9, 6, 3, 0];
-    return levels[Math.min(attemptsUsed, levels.length - 1)];
-  }, [attemptsUsed, revealImage]);
+  const handleGuess = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      await submitGuess(guessInput);
+    },
+    [guessInput, submitGuess],
+  );
 
   const attemptsLeft = useMemo(() => {
     if (!round) {
       return 0;
     }
 
-    return lastResult ? lastResult.remainingAttempts : round.maxAttempts;
-  }, [lastResult, round]);
+    if (!lastResult) {
+      return round.maxAttempts;
+    }
 
+    return lastResult.remainingAttempts;
+  }, [round, lastResult]);
+
+  const blurPx = useMemo(() => {
+    if (!round) {
+      return 10;
+    }
+
+    const used = round.maxAttempts - attemptsLeft;
+    return Math.max(8 - used * 1.25, 0);
+  }, [round, attemptsLeft]);
+
+  const revealImage = Boolean(lastResult?.finished || lastResult?.correct || lastResult?.revealed);
   const revealedHints = lastResult?.revealedHints ?? [];
 
   return (
-    <section style={{ display: "grid", gap: 20 }}>
-      <header
-        className="card"
-        style={{
-          display: "grid",
-          gap: 12,
-          borderColor: "#1f2431",
-          background: "linear-gradient(180deg,#0f1219,#090b11)",
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            width: 280,
-            height: 280,
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(124,180,255,0.16), transparent 70%)",
-            top: -120,
-            right: -90,
-            pointerEvents: "none",
-          }}
-        />
-
-        <div style={{ display: "grid", gap: 4 }}>
-          <h1 style={{ margin: 0, fontSize: 34, letterSpacing: 0.2 }}>AniGuess PL</h1>
-          <p className="muted" style={{ margin: 0 }}>
-          Zgadnij anime po screenie. Masz 5 prób i zdobywasz punkty za szybką poprawną odpowiedź.
-          </p>
+    <section className="aniguess-root">
+      <header className="aniguess-hero">
+        <div className="aniguess-hero__left">
+          <p className="aniguess-brand">AniGuess PL</p>
+          <h1 className="aniguess-title">Guess the anime from one frame</h1>
+          <p className="aniguess-subtitle">Ciemny klimat, szybkie rundy, punkty za celność. 5 prób na każdą zagadkę.</p>
         </div>
 
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <Link className="btn" href="/aleanimiec">
-            Przejdź do streamu
-          </Link>
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              void loadRound();
-            }}
-            disabled={loadingRound || guessing}
-          >
-            {loadingRound ? "Losowanie..." : "Nowa runda"}
-          </button>
-
-          <div
-            style={{
-              marginLeft: "auto",
-              display: "flex",
-              gap: 8,
-              flexWrap: "wrap",
-              justifyContent: "flex-end",
-            }}
-          >
-            <span className="muted" style={{ padding: "6px 10px", border: "1px solid #232a39", borderRadius: 999, background: "#0d1118" }}>
-              Punkty: <strong style={{ color: "#f3f4f6" }}>{totalScore}</strong>
-            </span>
-            <span className="muted" style={{ padding: "6px 10px", border: "1px solid #232a39", borderRadius: 999, background: "#0d1118" }}>
-              Seria: <strong style={{ color: "#f3f4f6" }}>{streak}</strong>
-            </span>
-            <span className="muted" style={{ padding: "6px 10px", border: "1px solid #232a39", borderRadius: 999, background: "#0d1118" }}>
-              Hinty: <strong style={{ color: "#f3f4f6" }}>{round ? Math.max(round.hintStepsCount - revealedHints.length, 0) : 0}</strong>
-            </span>
+        <div className="aniguess-hero__right">
+          <div className="aniguess-pill">
+            Punkty <strong>{totalScore}</strong>
+          </div>
+          <div className="aniguess-pill">
+            Seria <strong>{streak}</strong>
+          </div>
+          <div className="aniguess-pill">
+            Hinty <strong>{round ? Math.max(round.hintStepsCount - revealedHints.length, 0) : 0}</strong>
           </div>
         </div>
       </header>
 
-      <article
-        className="card"
-        style={{
-          display: "grid",
-          gap: 16,
-          borderColor: "#1d2230",
-          background: "linear-gradient(180deg,#0f1219,#090b11)",
-        }}
-      >
-        {!round && !loadingRound ? (
-          <button type="button" className="btn" onClick={() => void loadRound()} style={{ justifySelf: "start" }}>
-            Start gry
-          </button>
-        ) : null}
-
-        {loadingRound ? <p className="muted">Losowanie anime z top 5000 MAL...</p> : null}
-        {error ? <p className="error">{error}</p> : null}
-
-        {round ? (
-          <>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <span className="muted" style={{ padding: "6px 10px", border: "1px solid #273042", borderRadius: 999, background: "#0c1118" }}>
-                Rok: {round.hints.year ?? "brak"}
-              </span>
-              <span className="muted" style={{ padding: "6px 10px", border: "1px solid #273042", borderRadius: 999, background: "#0c1118" }}>
-                Odcinki: {round.hints.episodes ?? "?"}
-              </span>
-              <span className="muted" style={{ padding: "6px 10px", border: "1px solid #273042", borderRadius: 999, background: "#0c1118" }}>
-                MAL: {round.hints.score ?? "?"}
-              </span>
-              <span className="muted" style={{ padding: "6px 10px", border: "1px solid #273042", borderRadius: 999, background: "#0c1118" }}>
-                Rank: {round.hints.rank ?? "?"}
-              </span>
+      <main className="aniguess-layout">
+        <article className="aniguess-main-card">
+          <div className="aniguess-toolbar">
+            <button type="button" className="btn btn-primary" onClick={() => void loadRound()} disabled={loadingRound || guessing}>
+              {loadingRound ? "Losowanie..." : round ? "Nowa runda" : "Start gry"}
+            </button>
+            <div className="aniguess-mini-meta">
+              <span>Rok: {round?.hints.year ?? "?"}</span>
+              <span>Odcinki: {round?.hints.episodes ?? "?"}</span>
+              <span>MAL: {round?.hints.score ?? "?"}</span>
+              <span>Rank: {round?.hints.rank ?? "?"}</span>
             </div>
+          </div>
 
-            <img
-              src={round.imageUrl}
-              alt="Anime screenshot"
-              style={{
-                width: "100%",
-                maxWidth: 900,
-                justifySelf: "center",
-                aspectRatio: "16 / 9",
-                objectFit: "cover",
-                borderRadius: 16,
-                filter: revealImage ? "none" : `blur(${blurPx}px) brightness(0.74) saturate(0.9)`,
-                transition: "filter 220ms ease",
-                border: "1px solid #2a3242",
-                boxShadow: "0 18px 40px rgba(0,0,0,0.5)",
-              }}
-            />
+          {loadingRound ? <p className="muted">Losowanie anime z top 5000 MAL...</p> : null}
+          {error ? <p className="error">{error}</p> : null}
 
-            <form
-              onSubmit={handleGuess}
-              style={{
-                display: "grid",
-                gap: 10,
-                border: "1px solid #22293a",
-                borderRadius: 12,
-                padding: 12,
-                background: "#0b0f16",
-              }}
-            >
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                <input
-                  type="text"
-                  placeholder="Wpisz tytuł anime (EN/JP)"
-                  value={guessInput}
-                  onChange={(event) => setGuessInput(event.target.value)}
-                  disabled={guessing || (lastResult?.finished ?? false)}
-                  style={{
-                    padding: 10,
-                    borderRadius: 8,
-                    border: "1px solid #343b4f",
-                    background: "#10141d",
-                    color: "#f3f4f6",
-                    minWidth: 280,
-                    flex: 1,
-                  }}
+          {round ? (
+            <>
+              <figure className="aniguess-frame">
+                <img
+                  src={round.imageUrl}
+                  alt="Anime screenshot"
+                  className="aniguess-image"
+                  style={{ filter: revealImage ? "none" : `blur(${blurPx}px) brightness(0.72) saturate(0.9)` }}
                 />
-                <button type="submit" className="btn" disabled={guessing || !guessInput.trim() || (lastResult?.finished ?? false)}>
-                  {guessing ? "Sprawdzam..." : "Sprawdź"}
-                </button>
-                <button type="button" className="btn" onClick={() => void revealAnswer()} disabled={guessing || (lastResult?.finished ?? false)}>
-                  Pokaż odpowiedź
-                </button>
-              </div>
+                <figcaption className="aniguess-frame__caption">Próby: {attemptsLeft}</figcaption>
+              </figure>
 
-              {(loadingSuggestions || suggestions.length > 0) && !(lastResult?.finished ?? false) ? (
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 6,
-                    flexWrap: "wrap",
-                    padding: 8,
-                    border: "1px solid #2c3446",
-                    borderRadius: 8,
-                    background: "#0f141e",
-                  }}
-                >
-                  {loadingSuggestions ? <span className="muted">Szukam tytułów...</span> : null}
-                  {suggestions.map((suggestion) => (
-                    <button
-                      key={suggestion}
-                      type="button"
-                      className="btn"
-                      onClick={() => {
-                        setGuessInput(suggestion);
-                        setSuggestions([]);
-                      }}
-                      style={{ padding: "6px 10px" }}
-                    >
-                      {suggestion}
-                    </button>
-                  ))}
+              <form onSubmit={handleGuess} className="aniguess-guess-form">
+                <div className="aniguess-input-row">
+                  <input
+                    type="text"
+                    placeholder="Wpisz tytuł anime (EN/JP)"
+                    value={guessInput}
+                    onChange={(event) => setGuessInput(event.target.value)}
+                    disabled={guessing || (lastResult?.finished ?? false)}
+                    className="aniguess-input"
+                  />
+                  <button type="submit" className="btn btn-primary" disabled={guessing || !guessInput.trim() || (lastResult?.finished ?? false)}>
+                    {guessing ? "Sprawdzam..." : "Sprawdź"}
+                  </button>
+                  <button type="button" className="btn btn-ghost" onClick={() => void revealAnswer()} disabled={guessing || (lastResult?.finished ?? false)}>
+                    Pokaż odpowiedź
+                  </button>
+                </div>
+
+                {(loadingSuggestions || suggestions.length > 0) && !(lastResult?.finished ?? false) ? (
+                  <div className="aniguess-suggestions">
+                    {loadingSuggestions ? <span className="muted">Szukam tytułów...</span> : null}
+                    {suggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        className="aniguess-chip"
+                        onClick={() => {
+                          setGuessInput(suggestion);
+                          setSuggestions([]);
+                        }}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </form>
+
+              {lastResult?.finished && lastResult.answer ? (
+                <div className="aniguess-result">
+                  <p>
+                    Odpowiedź: <strong>{lastResult.answer.title}</strong>
+                  </p>
+                  <p className="muted">{lastResult.correct ? `+${lastResult.pointsAwarded} pkt` : "0 pkt"}</p>
+                  <a href={lastResult.answer.malUrl} target="_blank" rel="noreferrer" className="aniguess-link">
+                    Zobacz w MyAnimeList
+                  </a>
                 </div>
               ) : null}
-            </form>
+            </>
+          ) : null}
+        </article>
 
-            <p className="muted" style={{ margin: 0 }}>
-              Pozostałe próby: {attemptsLeft}
-            </p>
+        <aside className="aniguess-side-card">
+          <h2>Podpowiedzi</h2>
+          {revealedHints.length ? (
+            <ol className="aniguess-hints-list">
+              {revealedHints.map((hint, index) => (
+                <li key={`${hint}-${index}`}>{hint}</li>
+              ))}
+            </ol>
+          ) : (
+            <p className="muted">Po każdej błędnej odpowiedzi odblokujesz kolejną podpowiedź (studio, gatunki, sezon, źródło...).</p>
+          )}
 
-            {revealedHints.length ? (
-              <div
-                style={{
-                  display: "grid",
-                  gap: 6,
-                  border: "1px solid #2b3344",
-                  borderRadius: 10,
-                  padding: 10,
-                  background: "#0f131c",
-                }}
-              >
-                <strong style={{ fontSize: 14 }}>Podpowiedzi odblokowane po błędnych odpowiedziach:</strong>
-                {revealedHints.map((hint, index) => (
-                  <span key={`${hint}-${index}`} className="muted">
-                    {index + 1}. {hint}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="muted" style={{ margin: 0 }}>
-                Błędna odpowiedź odblokowuje kolejną podpowiedź (studio, gatunki, sezon itd.).
-              </p>
-            )}
-
-            {history.length ? (
-              <div style={{ display: "grid", gap: 6, borderTop: "1px solid #21293a", paddingTop: 10 }}>
-                {history.slice(0, 5).map((item, index) => (
-                  <p key={`${item.text}-${index}`} className="muted" style={{ margin: 0 }}>
-                    {item.correct ? "✅" : "❌"} {item.text} — podobieństwo {(item.similarity * 100).toFixed(1)}%
-                  </p>
-                ))}
-              </div>
-            ) : null}
-
-            {lastResult?.finished && lastResult.answer ? (
-              <div style={{ display: "grid", gap: 8, borderTop: "1px solid #21293a", paddingTop: 12 }}>
-                <p style={{ margin: 0 }}>
-                  Odpowiedź: <strong>{lastResult.answer.title}</strong>
-                </p>
-                <p className="muted" style={{ margin: 0 }}>
-                  {lastResult.correct ? `+${lastResult.pointsAwarded} pkt` : "0 pkt"}
-                </p>
-                <a href={lastResult.answer.malUrl} target="_blank" rel="noreferrer" className="muted">
-                  Otwórz w MyAnimeList
-                </a>
-              </div>
-            ) : null}
-          </>
-        ) : null}
-      </article>
+          <h2>Historia prób</h2>
+          {history.length ? (
+            <ul className="aniguess-history-list">
+              {history.slice(0, 6).map((item, index) => (
+                <li key={`${item.text}-${index}`}>
+                  <span>{item.correct ? "✅" : "❌"}</span>
+                  <span>{item.text}</span>
+                  <span>{(item.similarity * 100).toFixed(1)}%</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">Brak prób w tej rundzie.</p>
+          )}
+        </aside>
+      </main>
     </section>
   );
 }
