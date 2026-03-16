@@ -1,10 +1,10 @@
 :root {
   color-scheme: dark;
   --bg: #0d0e12;
-  --surface: #171a20;
-  --surface-soft: #1c2028;
-  --line: #2a303a;
-  --line-soft: #242a33;
+  --surface: #14171d;
+  --surface-soft: #191d25;
+  --line: #252b35;
+  --line-soft: #212732;
   --text: #f2f4f8;
   --muted: #9ea6b6;
   --accent: #ef5a7d;
@@ -148,7 +148,8 @@ a {
 .aniguess-ranking-card {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: linear-gradient(180deg, #171b22, #14181f);
+  background: linear-gradient(180deg, #141820, #11151c);
+  box-shadow: none;
 }
 
 .aniguess-main-card {
@@ -198,10 +199,10 @@ a {
 
 .aniguess-frame {
   margin: 0;
-  border: 1px solid #2f3644;
+  border: 1px solid #2a313e;
   border-radius: 8px;
   overflow: hidden;
-  background: #0e1117;
+  background: #0c0f15;
   position: relative;
 }
 
@@ -228,7 +229,7 @@ a {
 .aniguess-guess-form {
   border: 1px solid var(--line-soft);
   border-radius: 8px;
-  background: #171c25;
+  background: #151a23;
   padding: 10px;
   display: grid;
   gap: 8px;
@@ -317,9 +318,9 @@ a {
 
 .aniguess-hints-list li,
 .aniguess-history-list li {
-  border: 1px solid #2f3745;
+  border: 1px solid #29303d;
   border-radius: 6px;
-  background: #1c2330;
+  background: #171d28;
   padding: 8px 9px;
   color: #d5deef;
 }
@@ -386,8 +387,8 @@ a {
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
-  background: #1c2330;
-  border-bottom: 1px solid #2b3342;
+  background: #171d28;
+  border-bottom: 1px solid #28303d;
   color: #dce5f6;
   font-size: 0.88rem;
 }
@@ -397,7 +398,7 @@ a {
 }
 
 .aniguess-ranking-row--head {
-  background: #232b38;
+  background: #1d2430;
   color: #aeb9cf;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -410,20 +411,20 @@ a {
   left: 20px;
   bottom: 18px;
   z-index: 1200;
-  width: min(760px, calc(100vw - 40px));
-  border: 1px solid #2c3340;
+  width: min(620px, calc(100vw - 40px));
+  border: 1px solid #2a303b;
   border-radius: 8px;
-  background: linear-gradient(180deg, #1a1f27 0%, #171c24 100%);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34);
-  padding: 13px;
+  background: linear-gradient(180deg, #181c24 0%, #151921 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  padding: 10px 11px;
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .cookie-banner__text {
   margin: 0;
   color: #e6ecf8;
-  font-size: 0.98rem;
+  font-size: 0.92rem;
   line-height: 1.4;
 }
 
@@ -459,14 +460,14 @@ a {
 
 .cookie-btn {
   border-radius: 6px;
-  border: 1px solid #363f50;
-  background: #212938;
+  border: 1px solid #323b4b;
+  background: #202733;
   color: #f1f5ff;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   font-weight: 700;
   font-size: 0.82rem;
-  padding: 8px 12px;
+  padding: 7px 11px;
   cursor: pointer;
 }
 
@@ -523,7 +524,7 @@ a {
   .cookie-banner {
     left: 10px;
     bottom: 10px;
-    padding: 12px;
+    padding: 10px;
     width: calc(100vw - 20px);
   }
 
