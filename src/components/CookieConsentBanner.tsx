@@ -71,7 +71,7 @@ export default function CookieConsentBanner() {
 
       <div className="cookie-banner__actions">
         <button type="button" className="cookie-btn cookie-btn--ghost" onClick={() => setManageOpen((open) => !open)}>
-          Manage
+          Ustawienia
         </button>
         <button
           type="button"
@@ -81,7 +81,7 @@ export default function CookieConsentBanner() {
             setVisible(false);
           }}
         >
-          Decline all
+          Odrzuć wszystkie
         </button>
         <button
           type="button"
@@ -92,7 +92,7 @@ export default function CookieConsentBanner() {
             setVisible(false);
           }}
         >
-          Accept all
+          Akceptuj wszystkie
         </button>
       </div>
     </aside>

@@ -1,10 +1,10 @@
 :root {
   color-scheme: dark;
   --bg: #0d0e12;
-  --surface: #14171d;
-  --surface-soft: #191d25;
-  --line: #252b35;
-  --line-soft: #212732;
+  --surface: #13161c;
+  --surface-soft: #171b23;
+  --line: #232935;
+  --line-soft: #1f2530;
   --text: #f2f4f8;
   --muted: #9ea6b6;
   --accent: #ef5a7d;
@@ -148,7 +148,7 @@ a {
 .aniguess-ranking-card {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: linear-gradient(180deg, #141820, #11151c);
+  background: #141920;
   box-shadow: none;
 }
 
@@ -202,7 +202,7 @@ a {
   border: 1px solid #2a313e;
   border-radius: 8px;
   overflow: hidden;
-  background: #0c0f15;
+  background: #0b0e14;
   position: relative;
 }
 
@@ -229,7 +229,7 @@ a {
 .aniguess-guess-form {
   border: 1px solid var(--line-soft);
   border-radius: 8px;
-  background: #151a23;
+  background: #141923;
   padding: 10px;
   display: grid;
   gap: 8px;
@@ -320,7 +320,7 @@ a {
 .aniguess-history-list li {
   border: 1px solid #29303d;
   border-radius: 6px;
-  background: #171d28;
+  background: #161c27;
   padding: 8px 9px;
   color: #d5deef;
 }
@@ -387,7 +387,7 @@ a {
   gap: 8px;
   align-items: center;
   padding: 8px 10px;
-  background: #171d28;
+  background: #161c27;
   border-bottom: 1px solid #28303d;
   color: #dce5f6;
   font-size: 0.88rem;
@@ -398,7 +398,7 @@ a {
 }
 
 .aniguess-ranking-row--head {
-  background: #1d2430;
+  background: #1b222d;
   color: #aeb9cf;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -408,15 +408,16 @@ a {
 
 .cookie-banner {
   position: fixed;
-  left: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   bottom: 18px;
   z-index: 1200;
-  width: min(620px, calc(100vw - 40px));
+  width: min(640px, calc(100vw - 30px));
   border: 1px solid #2a303b;
   border-radius: 8px;
-  background: linear-gradient(180deg, #181c24 0%, #151921 100%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  padding: 10px 11px;
+  background: #171c24;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
+  padding: 10px;
   display: grid;
   gap: 8px;
 }
@@ -424,7 +425,7 @@ a {
 .cookie-banner__text {
   margin: 0;
   color: #e6ecf8;
-  font-size: 0.92rem;
+  font-size: 0.91rem;
   line-height: 1.4;
 }
 
@@ -467,7 +468,7 @@ a {
   letter-spacing: 0.03em;
   font-weight: 700;
   font-size: 0.82rem;
-  padding: 7px 11px;
+  padding: 7px 10px;
   cursor: pointer;
 }
 
@@ -522,10 +523,11 @@ a {
   }
 
   .cookie-banner {
-    left: 10px;
+    left: 50%;
+    transform: translateX(-50%);
     bottom: 10px;
     padding: 10px;
-    width: calc(100vw - 20px);
+    width: calc(100vw - 16px);
   }
 
   .cookie-banner__actions {
