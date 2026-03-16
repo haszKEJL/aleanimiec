@@ -3,14 +3,17 @@ import { Inter, Teko } from "next/font/google";
 import "./globals.css";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
 
-const appName = process.env.NEXT_PUBLIC_APP_NAME || "Streaming Odcinków";
-
 const bodyFont = Inter({ subsets: ["latin"], variable: "--font-body" });
 const displayFont = Teko({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-display" });
 
 export const metadata: Metadata = {
-  title: appName,
+  title: "AniGuess",
   description: "Zgaduj anime po screenach i zdobywaj punkty.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
