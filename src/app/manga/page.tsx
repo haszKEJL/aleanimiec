@@ -51,6 +51,7 @@ type MangaPayload = {
 };
 
 export default function MangaPage() {
+  const ADMIN_SESSION_KEY = "manga_admin_session";
   const [mode, setMode] = useState<MangaMode>("latest");
   const [inputValue, setInputValue] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
@@ -191,6 +192,48 @@ export default function MangaPage() {
     void loadSeriesOptions();
   }, [loadSeriesOptions]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedPassword = window.sessionStorage.getItem(ADMIN_SESSION_KEY) || "";
+    if (!storedPassword) {
+      return;
+    }
+
+    setAdminInput(storedPassword);
+
+    void (async () => {
+      setAdminLoading(true);
+
+      try {
+        const response = await fetch("/api/manga?mode=admin", {
+          cache: "no-store",
+          headers: {
+            "x-admin-password": storedPassword,
+          },
+        });
+
+        const payload = (await response.json()) as { items?: AdminSeriesItem[]; error?: string };
+        if (!response.ok) {
+          throw new Error(payload.error || "Nie udało się przywrócić sesji admina.");
+        }
+
+        setAdminPassword(storedPassword);
+        setAdminUnlocked(true);
+        setAdminItems(payload.items || []);
+      } catch {
+        window.sessionStorage.removeItem(ADMIN_SESSION_KEY);
+        setAdminPassword("");
+        setAdminUnlocked(false);
+        setAdminItems([]);
+      } finally {
+        setAdminLoading(false);
+      }
+    })();
+  }, []);
+
   const handleSearch = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -233,6 +276,9 @@ export default function MangaPage() {
       setAdminPassword(password);
       setAdminUnlocked(true);
       setAdminItems(payload.items || []);
+      if (typeof window !== "undefined") {
+        window.sessionStorage.setItem(ADMIN_SESSION_KEY, password);
+      }
       setAdminMessage("Panel odblokowany.");
     } catch (unlockError) {
       setAdminUnlocked(false);
@@ -249,6 +295,9 @@ export default function MangaPage() {
     setAdminPassword("");
     setAdminInput("");
     setAdminItems([]);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(ADMIN_SESSION_KEY);
+    }
     setAdminMessage("Panel został zablokowany.");
   }, []);
 

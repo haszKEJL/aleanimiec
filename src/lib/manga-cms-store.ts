@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
@@ -84,18 +84,24 @@ export async function readStore(): Promise<MangaStore> {
     const raw = await readFile(STORE_PATH, "utf8");
     const parsed = JSON.parse(raw) as unknown;
     if (!isMangaStore(parsed)) {
-      return EMPTY_STORE;
+      throw new Error("Nieprawidłowy format pliku manga-cms.json");
     }
     return parsed;
-  } catch {
-    await writeStore(EMPTY_STORE);
-    return EMPTY_STORE;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("ENOENT")) {
+      await writeStore(EMPTY_STORE);
+      return EMPTY_STORE;
+    }
+    throw error;
   }
 }
 
 export async function writeStore(store: MangaStore): Promise<void> {
   await mkdir(path.dirname(STORE_PATH), { recursive: true });
-  await writeFile(STORE_PATH, JSON.stringify(store, null, 2), "utf8");
+  const tempPath = `${STORE_PATH}.${Date.now()}.tmp`;
+  await writeFile(tempPath, JSON.stringify(store, null, 2), "utf8");
+  await rename(tempPath, STORE_PATH);
 }
 
 export async function createSeries(input: {
