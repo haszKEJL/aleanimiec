@@ -673,6 +673,213 @@ a {
   justify-content: center;
 }
 
+.manga-admin {
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: #161a21;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.manga-admin h2 {
+  margin: 0;
+  color: #ff7594;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 1rem;
+  font-family: var(--font-display), var(--font-body), sans-serif;
+}
+
+.manga-admin__field {
+  display: grid;
+  gap: 6px;
+}
+
+.manga-admin__field span {
+  font-size: 0.84rem;
+  color: #b3bdd0;
+}
+
+.manga-admin__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.manga-admin__card {
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: #1d222c;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.manga-admin__card h3 {
+  margin: 0;
+  color: #ffd9e2;
+  font-size: 0.98rem;
+}
+
+.manga-admin__textarea {
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  background: #1f232d;
+  color: #eff3fc;
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  font-family: var(--font-body), sans-serif;
+}
+
+.manga-admin__textarea:focus {
+  outline: none;
+  border-color: #bf5a76;
+  box-shadow: 0 0 0 2px rgba(191, 90, 118, 0.14);
+}
+
+.manga-admin__file {
+  color: #d9e1f0;
+}
+
+.manga-admin__message {
+  margin: 0;
+  color: #ffd7df;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 5px;
+  background: #212733;
+  padding: 8px 10px;
+}
+
+.manga-series-root,
+.manga-reader-root {
+  display: grid;
+  gap: 12px;
+}
+
+.manga-series-hero {
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: #171922;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 170px minmax(0, 1fr);
+}
+
+.manga-series-hero__cover-wrap {
+  border-radius: 5px;
+  overflow: hidden;
+  background: #10141b;
+  aspect-ratio: 3 / 4;
+}
+
+.manga-series-hero__cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.manga-series-hero__body {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.manga-series-hero__body h1,
+.manga-reader-head h1 {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  font-family: var(--font-display), var(--font-body), sans-serif;
+  letter-spacing: 0.03em;
+}
+
+.manga-series-toolbar,
+.manga-reader-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.manga-series-chapters {
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: #161b23;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.manga-series-chapters h2 {
+  margin: 0;
+  color: #ff7594;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-size: 1rem;
+  font-family: var(--font-display), var(--font-body), sans-serif;
+}
+
+.manga-series-chapters__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.manga-series-chapters__list li a {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 5px;
+  background: #1f2430;
+  padding: 9px 10px;
+}
+
+.manga-series-chapters__list li a strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manga-reader-head {
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: #171922;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.manga-reader-pages {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.manga-reader-page {
+  margin: 0;
+  width: min(980px, 100%);
+  border: 1px solid transparent;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #10141b;
+}
+
+.manga-reader-page img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 @media (max-width: 1040px) {
   .aniguess-layout {
     grid-template-columns: 1fr;
@@ -693,6 +900,22 @@ a {
   }
 
   .manga-hero {
+    flex-direction: column;
+  }
+
+  .manga-admin__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manga-series-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .manga-series-hero__cover-wrap {
+    max-width: 240px;
+  }
+
+  .manga-reader-head {
     flex-direction: column;
   }
 }
