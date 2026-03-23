@@ -46,7 +46,10 @@ export async function proxy(request: NextRequest) {
   if (
     pathname === "/" ||
     pathname === "/access" ||
+    pathname.startsWith("/manga") ||
+    pathname.startsWith("/uploads/manga/") ||
     pathname.startsWith("/api/access-login") ||
+    pathname.startsWith("/api/manga") ||
     pathname.startsWith("/api/aniguess/")
   ) {
     return NextResponse.next();
