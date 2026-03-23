@@ -62,7 +62,9 @@ export default function MangaPage() {
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const [adminInput, setAdminInput] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [adminMessage, setAdminMessage] = useState("");
   const [adminItems, setAdminItems] = useState<AdminSeriesItem[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
@@ -203,6 +205,52 @@ export default function MangaPage() {
     },
     [inputValue],
   );
+
+  const unlockAdminPanel = useCallback(async () => {
+    setAdminMessage("");
+
+    const password = adminInput.trim();
+    if (!password) {
+      setAdminMessage("Podaj hasło admina.");
+      return;
+    }
+
+    setAdminLoading(true);
+
+    try {
+      const response = await fetch("/api/manga?mode=admin", {
+        cache: "no-store",
+        headers: {
+          "x-admin-password": password,
+        },
+      });
+
+      const payload = (await response.json()) as { items?: AdminSeriesItem[]; error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || "Nieprawidłowe hasło admina.");
+      }
+
+      setAdminPassword(password);
+      setAdminUnlocked(true);
+      setAdminItems(payload.items || []);
+      setAdminMessage("Panel odblokowany.");
+    } catch (unlockError) {
+      setAdminUnlocked(false);
+      setAdminPassword("");
+      setAdminItems([]);
+      setAdminMessage(unlockError instanceof Error ? unlockError.message : "Nie udało się odblokować panelu.");
+    } finally {
+      setAdminLoading(false);
+    }
+  }, [adminInput]);
+
+  const lockAdminPanel = useCallback(() => {
+    setAdminUnlocked(false);
+    setAdminPassword("");
+    setAdminInput("");
+    setAdminItems([]);
+    setAdminMessage("Panel został zablokowany.");
+  }, []);
 
   const submitCreateSeries = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -597,154 +645,173 @@ export default function MangaPage() {
         <h2>Panel uploadu grupy</h2>
         <p className="muted">Dodaj, edytuj i usuwaj serie oraz rozdziały.</p>
 
-        <label className="manga-admin__field">
-          <span>Hasło admina</span>
-          <input
-            type="password"
-            value={adminPassword}
-            onChange={(event) => setAdminPassword(event.target.value)}
-            placeholder="ADMIN_SYNC_PASSWORD"
-            className="manga-search__input"
-          />
-        </label>
-
-        <div className="manga-admin__grid">
-          <form className="manga-admin__card" onSubmit={submitCreateSeries}>
-            <h3>Nowa seria</h3>
-            <input className="manga-search__input" placeholder="Tytuł" value={seriesTitle} onChange={(event) => setSeriesTitle(event.target.value)} />
-            <input className="manga-search__input" placeholder="Slug (opcjonalnie)" value={seriesSlug} onChange={(event) => setSeriesSlug(event.target.value)} />
-            <textarea
-              className="manga-admin__textarea"
-              placeholder="Opis"
-              value={seriesDescription}
-              onChange={(event) => setSeriesDescription(event.target.value)}
-            />
-            <input
-              className="manga-search__input"
-              placeholder="Tagi po przecinku (np. action, fantasy)"
-              value={seriesTags}
-              onChange={(event) => setSeriesTags(event.target.value)}
-            />
-            <select className="manga-search__input" value={seriesStatus} onChange={(event) => setSeriesStatus(event.target.value as "ongoing" | "completed" | "hiatus")}>
-              <option value="ongoing">ongoing</option>
-              <option value="completed">completed</option>
-              <option value="hiatus">hiatus</option>
-            </select>
-            <input type="file" accept="image/*" onChange={(event) => setSeriesCover(event.target.files?.[0] || null)} className="manga-admin__file" />
-            <button type="submit" className="btn btn-primary" disabled={creatingSeries || creatingChapter}>
-              {creatingSeries ? "Dodawanie..." : "Dodaj serię"}
+        {!adminUnlocked ? (
+          <form
+            className="manga-admin__card"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void unlockAdminPanel();
+            }}
+          >
+            <h3>Odblokuj panel</h3>
+            <label className="manga-admin__field">
+              <span>Hasło admina</span>
+              <input
+                type="password"
+                value={adminInput}
+                onChange={(event) => setAdminInput(event.target.value)}
+                placeholder="ADMIN_SYNC_PASSWORD"
+                className="manga-search__input"
+              />
+            </label>
+            <button type="submit" className="btn btn-primary" disabled={adminLoading}>
+              {adminLoading ? "Sprawdzanie..." : "Odblokuj"}
             </button>
           </form>
+        ) : (
+          <>
+            <div className="manga-admin__actions">
+              <button type="button" className="btn btn-ghost" onClick={() => void loadAdminData()} disabled={adminLoading || !!workingId}>
+                {adminLoading ? "Odświeżanie..." : "Odśwież listę do edycji"}
+              </button>
+              <button type="button" className="btn btn-ghost" onClick={lockAdminPanel} disabled={adminLoading || !!workingId}>
+                Zablokuj panel
+              </button>
+            </div>
 
-          <form className="manga-admin__card" onSubmit={submitCreateChapter}>
-            <h3>Nowy rozdział</h3>
-            <select className="manga-search__input" value={chapterSeriesId} onChange={(event) => setChapterSeriesId(event.target.value)}>
-              {!seriesOptions.length ? <option value="">Brak serii</option> : null}
-              {seriesOptions.map((series) => (
-                <option key={series.id} value={series.id}>
-                  {series.title}
-                </option>
-              ))}
-            </select>
-            <input
-              className="manga-search__input"
-              placeholder="Numer rozdziału (np. 12 lub 12.5)"
-              value={chapterNumber}
-              onChange={(event) => setChapterNumber(event.target.value)}
-            />
-            <input
-              className="manga-search__input"
-              placeholder="Tytuł rozdziału (opcjonalnie)"
-              value={chapterTitle}
-              onChange={(event) => setChapterTitle(event.target.value)}
-            />
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(event) => setChapterPages(event.target.files)}
-              className="manga-admin__file"
-            />
-            <button type="submit" className="btn btn-primary" disabled={creatingSeries || creatingChapter || !seriesOptions.length}>
-              {creatingChapter ? "Wrzucanie..." : "Dodaj rozdział"}
-            </button>
-          </form>
-        </div>
+            <div className="manga-admin__grid">
+              <form className="manga-admin__card" onSubmit={submitCreateSeries}>
+                <h3>Nowa seria</h3>
+                <input className="manga-search__input" placeholder="Tytuł" value={seriesTitle} onChange={(event) => setSeriesTitle(event.target.value)} />
+                <input className="manga-search__input" placeholder="Slug (opcjonalnie)" value={seriesSlug} onChange={(event) => setSeriesSlug(event.target.value)} />
+                <textarea
+                  className="manga-admin__textarea"
+                  placeholder="Opis"
+                  value={seriesDescription}
+                  onChange={(event) => setSeriesDescription(event.target.value)}
+                />
+                <input
+                  className="manga-search__input"
+                  placeholder="Tagi po przecinku (np. action, fantasy)"
+                  value={seriesTags}
+                  onChange={(event) => setSeriesTags(event.target.value)}
+                />
+                <select className="manga-search__input" value={seriesStatus} onChange={(event) => setSeriesStatus(event.target.value as "ongoing" | "completed" | "hiatus")}>
+                  <option value="ongoing">ongoing</option>
+                  <option value="completed">completed</option>
+                  <option value="hiatus">hiatus</option>
+                </select>
+                <input type="file" accept="image/*" onChange={(event) => setSeriesCover(event.target.files?.[0] || null)} className="manga-admin__file" />
+                <button type="submit" className="btn btn-primary" disabled={creatingSeries || creatingChapter}>
+                  {creatingSeries ? "Dodawanie..." : "Dodaj serię"}
+                </button>
+              </form>
 
-        <div className="manga-admin__actions">
-          <button type="button" className="btn btn-ghost" onClick={() => void loadAdminData()} disabled={!adminPassword.trim() || adminLoading || !!workingId}>
-            {adminLoading ? "Odświeżanie..." : "Odśwież listę do edycji"}
-          </button>
-        </div>
+              <form className="manga-admin__card" onSubmit={submitCreateChapter}>
+                <h3>Nowy rozdział</h3>
+                <select className="manga-search__input" value={chapterSeriesId} onChange={(event) => setChapterSeriesId(event.target.value)}>
+                  {!seriesOptions.length ? <option value="">Brak serii</option> : null}
+                  {seriesOptions.map((series) => (
+                    <option key={series.id} value={series.id}>
+                      {series.title}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="manga-search__input"
+                  placeholder="Numer rozdziału (np. 12 lub 12.5)"
+                  value={chapterNumber}
+                  onChange={(event) => setChapterNumber(event.target.value)}
+                />
+                <input
+                  className="manga-search__input"
+                  placeholder="Tytuł rozdziału (opcjonalnie)"
+                  value={chapterTitle}
+                  onChange={(event) => setChapterTitle(event.target.value)}
+                />
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(event) => setChapterPages(event.target.files)}
+                  className="manga-admin__file"
+                />
+                <button type="submit" className="btn btn-primary" disabled={creatingSeries || creatingChapter || !seriesOptions.length}>
+                  {creatingChapter ? "Wrzucanie..." : "Dodaj rozdział"}
+                </button>
+              </form>
+            </div>
 
-        {adminItems.length ? (
-          <div className="manga-admin-manage">
-            {adminItems.map((series) => (
-              <article key={series.id} className="manga-admin-manage__series">
-                <form className="manga-admin-manage__series-form" onSubmit={(event) => void submitUpdateSeries(event, series.id)}>
-                  <h3>{series.title}</h3>
-                  <input name="title" className="manga-search__input" defaultValue={series.title} placeholder="Tytuł" />
-                  <input name="slug" className="manga-search__input" defaultValue={series.slug} placeholder="Slug" />
-                  <textarea name="description" className="manga-admin__textarea" defaultValue={series.description} placeholder="Opis" />
-                  <input name="tags" className="manga-search__input" defaultValue={series.tags.join(", ")} placeholder="Tagi po przecinku" />
-                  <select name="status" className="manga-search__input" defaultValue={series.status}>
-                    <option value="ongoing">ongoing</option>
-                    <option value="completed">completed</option>
-                    <option value="hiatus">hiatus</option>
-                  </select>
-                  <label className="manga-admin__checkbox">
-                    <input type="checkbox" name="keepCover" defaultChecked />
-                    <span>Zachowaj obecną okładkę</span>
-                  </label>
-                  <input name="cover" type="file" accept="image/*" className="manga-admin__file" />
-                  <div className="manga-admin__row">
-                    <button type="submit" className="btn btn-primary" disabled={!!workingId}>
-                      {workingId === `series-${series.id}` ? "Zapisywanie..." : "Zapisz serię"}
-                    </button>
-                    <button type="button" className="btn btn-ghost" disabled={!!workingId} onClick={() => void submitDeleteSeries(series.id)}>
-                      {workingId === `series-delete-${series.id}` ? "Usuwanie..." : "Usuń serię"}
-                    </button>
-                    <Link href={`/manga/${series.slug}`} className="btn btn-ghost">
-                      Podgląd
-                    </Link>
-                  </div>
-                </form>
-
-                <div className="manga-admin-manage__chapters">
-                  <h4>Rozdziały</h4>
-                  {!series.chapters.length ? <p className="muted">Brak rozdziałów.</p> : null}
-                  {series.chapters.map((chapter) => (
-                    <form key={chapter.id} className="manga-admin-manage__chapter" onSubmit={(event) => void submitUpdateChapter(event, chapter.id)}>
-                      <input
-                        name="chapterNumber"
-                        className="manga-search__input"
-                        defaultValue={String(chapter.number)}
-                        placeholder="Numer"
-                      />
-                      <input
-                        name="chapterTitle"
-                        className="manga-search__input"
-                        defaultValue={chapter.title}
-                        placeholder="Tytuł rozdziału"
-                      />
+            {adminItems.length ? (
+              <div className="manga-admin-manage">
+                {adminItems.map((series) => (
+                  <article key={series.id} className="manga-admin-manage__series">
+                    <form className="manga-admin-manage__series-form" onSubmit={(event) => void submitUpdateSeries(event, series.id)}>
+                      <h3>{series.title}</h3>
+                      <input name="title" className="manga-search__input" defaultValue={series.title} placeholder="Tytuł" />
+                      <input name="slug" className="manga-search__input" defaultValue={series.slug} placeholder="Slug" />
+                      <textarea name="description" className="manga-admin__textarea" defaultValue={series.description} placeholder="Opis" />
+                      <input name="tags" className="manga-search__input" defaultValue={series.tags.join(", ")} placeholder="Tagi po przecinku" />
+                      <select name="status" className="manga-search__input" defaultValue={series.status}>
+                        <option value="ongoing">ongoing</option>
+                        <option value="completed">completed</option>
+                        <option value="hiatus">hiatus</option>
+                      </select>
+                      <label className="manga-admin__checkbox">
+                        <input type="checkbox" name="keepCover" defaultChecked />
+                        <span>Zachowaj obecną okładkę</span>
+                      </label>
+                      <input name="cover" type="file" accept="image/*" className="manga-admin__file" />
                       <div className="manga-admin__row">
                         <button type="submit" className="btn btn-primary" disabled={!!workingId}>
-                          {workingId === `chapter-${chapter.id}` ? "Zapisywanie..." : "Zapisz"}
+                          {workingId === `series-${series.id}` ? "Zapisywanie..." : "Zapisz serię"}
                         </button>
-                        <button type="button" className="btn btn-ghost" disabled={!!workingId} onClick={() => void submitDeleteChapter(chapter.id)}>
-                          {workingId === `chapter-delete-${chapter.id}` ? "Usuwanie..." : "Usuń"}
+                        <button type="button" className="btn btn-ghost" disabled={!!workingId} onClick={() => void submitDeleteSeries(series.id)}>
+                          {workingId === `series-delete-${series.id}` ? "Usuwanie..." : "Usuń serię"}
                         </button>
-                        <Link href={`/manga/${series.slug}/${chapter.id}`} className="btn btn-ghost">
-                          Czytaj
+                        <Link href={`/manga/${series.slug}`} className="btn btn-ghost">
+                          Podgląd
                         </Link>
                       </div>
                     </form>
-                  ))}
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : null}
+
+                    <div className="manga-admin-manage__chapters">
+                      <h4>Rozdziały</h4>
+                      {!series.chapters.length ? <p className="muted">Brak rozdziałów.</p> : null}
+                      {series.chapters.map((chapter) => (
+                        <form key={chapter.id} className="manga-admin-manage__chapter" onSubmit={(event) => void submitUpdateChapter(event, chapter.id)}>
+                          <input
+                            name="chapterNumber"
+                            className="manga-search__input"
+                            defaultValue={String(chapter.number)}
+                            placeholder="Numer"
+                          />
+                          <input
+                            name="chapterTitle"
+                            className="manga-search__input"
+                            defaultValue={chapter.title}
+                            placeholder="Tytuł rozdziału"
+                          />
+                          <div className="manga-admin__row">
+                            <button type="submit" className="btn btn-primary" disabled={!!workingId}>
+                              {workingId === `chapter-${chapter.id}` ? "Zapisywanie..." : "Zapisz"}
+                            </button>
+                            <button type="button" className="btn btn-ghost" disabled={!!workingId} onClick={() => void submitDeleteChapter(chapter.id)}>
+                              {workingId === `chapter-delete-${chapter.id}` ? "Usuwanie..." : "Usuń"}
+                            </button>
+                            <Link href={`/manga/${series.slug}/${chapter.id}`} className="btn btn-ghost">
+                              Czytaj
+                            </Link>
+                          </div>
+                        </form>
+                      ))}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </>
+        )}
 
         {adminMessage ? <p className="manga-admin__message">{adminMessage}</p> : null}
       </section>
