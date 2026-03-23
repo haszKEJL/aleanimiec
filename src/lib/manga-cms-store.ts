@@ -42,6 +42,10 @@ export type MangaCard = {
   updatedAt: string;
 };
 
+export type MangaAdminSeries = MangaSeries & {
+  chapters: MangaChapter[];
+};
+
 const STORE_PATH = path.join(process.cwd(), "data", "manga-cms.json");
 
 const EMPTY_STORE: MangaStore = {
@@ -241,4 +245,134 @@ export async function getSeriesBySlug(slug: string): Promise<{
     .sort((left, right) => right.number - left.number || right.createdAt.localeCompare(left.createdAt));
 
   return { series, chapters };
+}
+
+export async function listAdminSeriesDetails(): Promise<MangaAdminSeries[]> {
+  const store = await readStore();
+
+  return [...store.series]
+    .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+    .map((series) => ({
+      ...series,
+      chapters: store.chapters
+        .filter((chapter) => chapter.seriesId === series.id)
+        .sort((left, right) => right.number - left.number || right.createdAt.localeCompare(left.createdAt)),
+    }));
+}
+
+export async function updateSeries(input: {
+  id: string;
+  title: string;
+  slug?: string;
+  description?: string;
+  tags?: string[];
+  status?: MangaSeries["status"];
+  coverUrl?: string | null;
+  keepCover?: boolean;
+}): Promise<MangaSeries> {
+  const store = await readStore();
+  const series = store.series.find((entry) => entry.id === input.id);
+
+  if (!series) {
+    throw new Error("Nie znaleziono serii.");
+  }
+
+  const title = input.title.trim();
+  if (!title) {
+    throw new Error("Tytuł serii jest wymagany.");
+  }
+
+  const requestedSlug = normalizeSlug(input.slug || title);
+  if (!requestedSlug) {
+    throw new Error("Nieprawidłowy slug serii.");
+  }
+
+  let slug = requestedSlug;
+  let attempt = 1;
+  while (store.series.some((entry) => entry.id !== series.id && entry.slug === slug)) {
+    attempt += 1;
+    slug = `${requestedSlug}-${attempt}`;
+  }
+
+  series.title = title;
+  series.slug = slug;
+  series.description = (input.description || "").trim();
+  series.tags = (input.tags || []).map((tag) => tag.trim()).filter(Boolean).slice(0, 10);
+  series.status = input.status || "ongoing";
+
+  if (input.keepCover === false) {
+    series.coverUrl = null;
+  }
+
+  if (typeof input.coverUrl !== "undefined") {
+    series.coverUrl = input.coverUrl;
+  }
+
+  series.updatedAt = new Date().toISOString();
+  await writeStore(store);
+  return series;
+}
+
+export async function deleteSeries(seriesId: string): Promise<{ removedChapterIds: string[]; removedCoverUrl: string | null }> {
+  const store = await readStore();
+  const seriesIndex = store.series.findIndex((entry) => entry.id === seriesId);
+  if (seriesIndex === -1) {
+    throw new Error("Nie znaleziono serii.");
+  }
+
+  const [series] = store.series.splice(seriesIndex, 1);
+  const removedChapters = store.chapters.filter((chapter) => chapter.seriesId === series.id);
+  store.chapters = store.chapters.filter((chapter) => chapter.seriesId !== series.id);
+
+  await writeStore(store);
+
+  return {
+    removedChapterIds: removedChapters.map((chapter) => chapter.id),
+    removedCoverUrl: series.coverUrl,
+  };
+}
+
+export async function updateChapter(input: {
+  chapterId: string;
+  number: number;
+  title?: string;
+}): Promise<MangaChapter> {
+  const store = await readStore();
+  const chapter = store.chapters.find((entry) => entry.id === input.chapterId);
+  if (!chapter) {
+    throw new Error("Nie znaleziono rozdziału.");
+  }
+
+  if (!Number.isFinite(input.number) || input.number <= 0) {
+    throw new Error("Nieprawidłowy numer rozdziału.");
+  }
+
+  chapter.number = input.number;
+  chapter.title = (input.title || "").trim() || `Rozdział ${input.number}`;
+
+  const series = store.series.find((entry) => entry.id === chapter.seriesId);
+  if (series) {
+    series.updatedAt = new Date().toISOString();
+  }
+
+  await writeStore(store);
+  return chapter;
+}
+
+export async function deleteChapter(chapterId: string): Promise<MangaChapter> {
+  const store = await readStore();
+  const chapterIndex = store.chapters.findIndex((entry) => entry.id === chapterId);
+  if (chapterIndex === -1) {
+    throw new Error("Nie znaleziono rozdziału.");
+  }
+
+  const [chapter] = store.chapters.splice(chapterIndex, 1);
+
+  const series = store.series.find((entry) => entry.id === chapter.seriesId);
+  if (series) {
+    series.updatedAt = new Date().toISOString();
+  }
+
+  await writeStore(store);
+  return chapter;
 }

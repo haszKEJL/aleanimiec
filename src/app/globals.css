@@ -754,6 +754,74 @@ a {
   padding: 8px 10px;
 }
 
+.manga-admin__actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.manga-admin__checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #d4ddf0;
+  font-size: 0.86rem;
+}
+
+.manga-admin__row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.manga-admin-manage {
+  display: grid;
+  gap: 10px;
+}
+
+.manga-admin-manage__series {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 5px;
+  background: #1a202a;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.manga-admin-manage__series-form {
+  display: grid;
+  gap: 8px;
+}
+
+.manga-admin-manage__series-form h3 {
+  margin: 0;
+  color: #ffd9e2;
+  font-size: 1rem;
+}
+
+.manga-admin-manage__chapters {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.manga-admin-manage__chapters h4 {
+  margin: 0;
+  color: #bfc9dd;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.manga-admin-manage__chapter {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 5px;
+  background: #1f2530;
+  padding: 8px;
+  display: grid;
+  gap: 8px;
+}
+
 .manga-series-root,
 .manga-reader-root {
   display: grid;

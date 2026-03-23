@@ -24,6 +24,24 @@ type SeriesBasicItem = {
   title: string;
 };
 
+type AdminChapter = {
+  id: string;
+  number: number;
+  title: string;
+  createdAt: string;
+};
+
+type AdminSeriesItem = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  tags: string[];
+  status: "ongoing" | "completed" | "hiatus";
+  coverUrl: string | null;
+  chapters: AdminChapter[];
+};
+
 type MangaPayload = {
   items: MangaItem[];
   total: number;
@@ -46,8 +64,11 @@ export default function MangaPage() {
   const [error, setError] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [adminMessage, setAdminMessage] = useState("");
+  const [adminItems, setAdminItems] = useState<AdminSeriesItem[]>([]);
+  const [adminLoading, setAdminLoading] = useState(false);
   const [creatingSeries, setCreatingSeries] = useState(false);
   const [creatingChapter, setCreatingChapter] = useState(false);
+  const [workingId, setWorkingId] = useState("");
 
   const [seriesTitle, setSeriesTitle] = useState("");
   const [seriesSlug, setSeriesSlug] = useState("");
@@ -121,6 +142,36 @@ export default function MangaPage() {
       setSeriesOptions([]);
     }
   }, [chapterSeriesId]);
+
+  const loadAdminData = useCallback(async () => {
+    if (!adminPassword.trim()) {
+      setAdminItems([]);
+      return;
+    }
+
+    setAdminLoading(true);
+
+    try {
+      const response = await fetch("/api/manga?mode=admin", {
+        cache: "no-store",
+        headers: {
+          "x-admin-password": adminPassword.trim(),
+        },
+      });
+
+      const payload = (await response.json()) as { items?: AdminSeriesItem[]; error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error || "Nie udało się pobrać panelu zarządzania.");
+      }
+
+      setAdminItems(payload.items || []);
+    } catch (loadError) {
+      setAdminMessage(loadError instanceof Error ? loadError.message : "Nie udało się pobrać panelu zarządzania.");
+      setAdminItems([]);
+    } finally {
+      setAdminLoading(false);
+    }
+  }, [adminPassword]);
 
   useEffect(() => {
     if (mode === "search" && activeQuery.trim().length < 2) {
@@ -201,14 +252,14 @@ export default function MangaPage() {
         setSeriesDescription("");
         setSeriesTags("");
         setSeriesCover(null);
-        await Promise.all([fetchManga(0, false), loadSeriesOptions()]);
+        await Promise.all([fetchManga(0, false), loadSeriesOptions(), loadAdminData()]);
       } catch (submitError) {
         setAdminMessage(submitError instanceof Error ? submitError.message : "Nie udało się dodać serii.");
       } finally {
         setCreatingSeries(false);
       }
     },
-    [adminPassword, seriesTitle, seriesSlug, seriesDescription, seriesTags, seriesStatus, seriesCover, fetchManga, loadSeriesOptions],
+    [adminPassword, seriesTitle, seriesSlug, seriesDescription, seriesTags, seriesStatus, seriesCover, fetchManga, loadSeriesOptions, loadAdminData],
   );
 
   const submitCreateChapter = useCallback(
@@ -266,14 +317,186 @@ export default function MangaPage() {
         setChapterNumber("");
         setChapterTitle("");
         setChapterPages(null);
-        await Promise.all([fetchManga(0, false), loadSeriesOptions()]);
+        await Promise.all([fetchManga(0, false), loadSeriesOptions(), loadAdminData()]);
       } catch (submitError) {
         setAdminMessage(submitError instanceof Error ? submitError.message : "Nie udało się dodać rozdziału.");
       } finally {
         setCreatingChapter(false);
       }
     },
-    [adminPassword, chapterSeriesId, chapterNumber, chapterPages, chapterTitle, fetchManga, loadSeriesOptions],
+    [adminPassword, chapterSeriesId, chapterNumber, chapterPages, chapterTitle, fetchManga, loadSeriesOptions, loadAdminData],
+  );
+
+  const submitUpdateSeries = useCallback(
+    async (event: FormEvent<HTMLFormElement>, seriesId: string) => {
+      event.preventDefault();
+      setAdminMessage("");
+
+      if (!adminPassword.trim()) {
+        setAdminMessage("Podaj hasło admina.");
+        return;
+      }
+
+      const form = event.currentTarget;
+      const formData = new FormData(form);
+      formData.set("action", "update-series");
+      formData.set("seriesId", seriesId);
+      if (!formData.get("keepCover")) {
+        formData.set("keepCover", "false");
+      }
+
+      setWorkingId(`series-${seriesId}`);
+
+      try {
+        const response = await fetch("/api/manga", {
+          method: "POST",
+          headers: {
+            "x-admin-password": adminPassword.trim(),
+          },
+          body: formData,
+        });
+
+        const payload = (await response.json()) as { error?: string };
+        if (!response.ok) {
+          throw new Error(payload.error || "Nie udało się zapisać serii.");
+        }
+
+        setAdminMessage("Seria została zaktualizowana.");
+        await Promise.all([fetchManga(0, false), loadSeriesOptions(), loadAdminData()]);
+      } catch (submitError) {
+        setAdminMessage(submitError instanceof Error ? submitError.message : "Nie udało się zapisać serii.");
+      } finally {
+        setWorkingId("");
+      }
+    },
+    [adminPassword, fetchManga, loadSeriesOptions, loadAdminData],
+  );
+
+  const submitDeleteSeries = useCallback(
+    async (seriesId: string) => {
+      if (!adminPassword.trim()) {
+        setAdminMessage("Podaj hasło admina.");
+        return;
+      }
+
+      if (!confirm("Usunąć serię i wszystkie jej rozdziały?")) {
+        return;
+      }
+
+      setWorkingId(`series-delete-${seriesId}`);
+      setAdminMessage("");
+
+      try {
+        const formData = new FormData();
+        formData.set("action", "delete-series");
+        formData.set("seriesId", seriesId);
+
+        const response = await fetch("/api/manga", {
+          method: "POST",
+          headers: {
+            "x-admin-password": adminPassword.trim(),
+          },
+          body: formData,
+        });
+
+        const payload = (await response.json()) as { error?: string };
+        if (!response.ok) {
+          throw new Error(payload.error || "Nie udało się usunąć serii.");
+        }
+
+        setAdminMessage("Seria została usunięta.");
+        await Promise.all([fetchManga(0, false), loadSeriesOptions(), loadAdminData()]);
+      } catch (deleteError) {
+        setAdminMessage(deleteError instanceof Error ? deleteError.message : "Nie udało się usunąć serii.");
+      } finally {
+        setWorkingId("");
+      }
+    },
+    [adminPassword, fetchManga, loadSeriesOptions, loadAdminData],
+  );
+
+  const submitUpdateChapter = useCallback(
+    async (event: FormEvent<HTMLFormElement>, chapterId: string) => {
+      event.preventDefault();
+      setAdminMessage("");
+
+      if (!adminPassword.trim()) {
+        setAdminMessage("Podaj hasło admina.");
+        return;
+      }
+
+      setWorkingId(`chapter-${chapterId}`);
+
+      try {
+        const formData = new FormData(event.currentTarget);
+        formData.set("action", "update-chapter");
+        formData.set("chapterId", chapterId);
+
+        const response = await fetch("/api/manga", {
+          method: "POST",
+          headers: {
+            "x-admin-password": adminPassword.trim(),
+          },
+          body: formData,
+        });
+
+        const payload = (await response.json()) as { error?: string };
+        if (!response.ok) {
+          throw new Error(payload.error || "Nie udało się zapisać rozdziału.");
+        }
+
+        setAdminMessage("Rozdział został zaktualizowany.");
+        await Promise.all([fetchManga(0, false), loadAdminData()]);
+      } catch (submitError) {
+        setAdminMessage(submitError instanceof Error ? submitError.message : "Nie udało się zapisać rozdziału.");
+      } finally {
+        setWorkingId("");
+      }
+    },
+    [adminPassword, fetchManga, loadAdminData],
+  );
+
+  const submitDeleteChapter = useCallback(
+    async (chapterId: string) => {
+      if (!adminPassword.trim()) {
+        setAdminMessage("Podaj hasło admina.");
+        return;
+      }
+
+      if (!confirm("Usunąć ten rozdział?")) {
+        return;
+      }
+
+      setWorkingId(`chapter-delete-${chapterId}`);
+      setAdminMessage("");
+
+      try {
+        const formData = new FormData();
+        formData.set("action", "delete-chapter");
+        formData.set("chapterId", chapterId);
+
+        const response = await fetch("/api/manga", {
+          method: "POST",
+          headers: {
+            "x-admin-password": adminPassword.trim(),
+          },
+          body: formData,
+        });
+
+        const payload = (await response.json()) as { error?: string };
+        if (!response.ok) {
+          throw new Error(payload.error || "Nie udało się usunąć rozdziału.");
+        }
+
+        setAdminMessage("Rozdział został usunięty.");
+        await Promise.all([fetchManga(0, false), loadAdminData()]);
+      } catch (deleteError) {
+        setAdminMessage(deleteError instanceof Error ? deleteError.message : "Nie udało się usunąć rozdziału.");
+      } finally {
+        setWorkingId("");
+      }
+    },
+    [adminPassword, fetchManga, loadAdminData],
   );
 
   const canLoadMore = items.length > 0 && items.length < total;
@@ -372,7 +595,7 @@ export default function MangaPage() {
 
       <section className="manga-admin">
         <h2>Panel uploadu grupy</h2>
-        <p className="muted">Dodaj serie i wrzucaj własne rozdziały (obrazy stron).</p>
+        <p className="muted">Dodaj, edytuj i usuwaj serie oraz rozdziały.</p>
 
         <label className="manga-admin__field">
           <span>Hasło admina</span>
@@ -447,6 +670,81 @@ export default function MangaPage() {
             </button>
           </form>
         </div>
+
+        <div className="manga-admin__actions">
+          <button type="button" className="btn btn-ghost" onClick={() => void loadAdminData()} disabled={!adminPassword.trim() || adminLoading || !!workingId}>
+            {adminLoading ? "Odświeżanie..." : "Odśwież listę do edycji"}
+          </button>
+        </div>
+
+        {adminItems.length ? (
+          <div className="manga-admin-manage">
+            {adminItems.map((series) => (
+              <article key={series.id} className="manga-admin-manage__series">
+                <form className="manga-admin-manage__series-form" onSubmit={(event) => void submitUpdateSeries(event, series.id)}>
+                  <h3>{series.title}</h3>
+                  <input name="title" className="manga-search__input" defaultValue={series.title} placeholder="Tytuł" />
+                  <input name="slug" className="manga-search__input" defaultValue={series.slug} placeholder="Slug" />
+                  <textarea name="description" className="manga-admin__textarea" defaultValue={series.description} placeholder="Opis" />
+                  <input name="tags" className="manga-search__input" defaultValue={series.tags.join(", ")} placeholder="Tagi po przecinku" />
+                  <select name="status" className="manga-search__input" defaultValue={series.status}>
+                    <option value="ongoing">ongoing</option>
+                    <option value="completed">completed</option>
+                    <option value="hiatus">hiatus</option>
+                  </select>
+                  <label className="manga-admin__checkbox">
+                    <input type="checkbox" name="keepCover" defaultChecked />
+                    <span>Zachowaj obecną okładkę</span>
+                  </label>
+                  <input name="cover" type="file" accept="image/*" className="manga-admin__file" />
+                  <div className="manga-admin__row">
+                    <button type="submit" className="btn btn-primary" disabled={!!workingId}>
+                      {workingId === `series-${series.id}` ? "Zapisywanie..." : "Zapisz serię"}
+                    </button>
+                    <button type="button" className="btn btn-ghost" disabled={!!workingId} onClick={() => void submitDeleteSeries(series.id)}>
+                      {workingId === `series-delete-${series.id}` ? "Usuwanie..." : "Usuń serię"}
+                    </button>
+                    <Link href={`/manga/${series.slug}`} className="btn btn-ghost">
+                      Podgląd
+                    </Link>
+                  </div>
+                </form>
+
+                <div className="manga-admin-manage__chapters">
+                  <h4>Rozdziały</h4>
+                  {!series.chapters.length ? <p className="muted">Brak rozdziałów.</p> : null}
+                  {series.chapters.map((chapter) => (
+                    <form key={chapter.id} className="manga-admin-manage__chapter" onSubmit={(event) => void submitUpdateChapter(event, chapter.id)}>
+                      <input
+                        name="chapterNumber"
+                        className="manga-search__input"
+                        defaultValue={String(chapter.number)}
+                        placeholder="Numer"
+                      />
+                      <input
+                        name="chapterTitle"
+                        className="manga-search__input"
+                        defaultValue={chapter.title}
+                        placeholder="Tytuł rozdziału"
+                      />
+                      <div className="manga-admin__row">
+                        <button type="submit" className="btn btn-primary" disabled={!!workingId}>
+                          {workingId === `chapter-${chapter.id}` ? "Zapisywanie..." : "Zapisz"}
+                        </button>
+                        <button type="button" className="btn btn-ghost" disabled={!!workingId} onClick={() => void submitDeleteChapter(chapter.id)}>
+                          {workingId === `chapter-delete-${chapter.id}` ? "Usuwanie..." : "Usuń"}
+                        </button>
+                        <Link href={`/manga/${series.slug}/${chapter.id}`} className="btn btn-ghost">
+                          Czytaj
+                        </Link>
+                      </div>
+                    </form>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
 
         {adminMessage ? <p className="manga-admin__message">{adminMessage}</p> : null}
       </section>

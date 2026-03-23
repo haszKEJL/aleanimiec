@@ -1,8 +1,20 @@
 import { timingSafeEqual } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
-import { addChapter, createSeries, listSeriesBasic, listSeriesCards, normalizeSlug, readStore } from "@/lib/manga-cms-store";
+import {
+  addChapter,
+  createSeries,
+  deleteChapter,
+  deleteSeries,
+  listAdminSeriesDetails,
+  listSeriesBasic,
+  listSeriesCards,
+  normalizeSlug,
+  readStore,
+  updateChapter,
+  updateSeries,
+} from "@/lib/manga-cms-store";
 
 export const runtime = "nodejs";
 
@@ -42,6 +54,23 @@ async function saveUploadedFile(file: File, targetPath: string): Promise<void> {
   await writeFile(targetPath, Buffer.from(arrayBuffer));
 }
 
+async function removePublicUploadByUrl(url: string | null): Promise<void> {
+  if (!url || !url.startsWith("/uploads/manga/")) {
+    return;
+  }
+
+  const relative = url.replace(/^\/+/, "");
+  const targetPath = path.join(process.cwd(), "public", relative);
+  const uploadsRoot = path.join(process.cwd(), "public", "uploads", "manga");
+  const normalized = path.normalize(targetPath);
+
+  if (!normalized.startsWith(path.normalize(uploadsRoot))) {
+    return;
+  }
+
+  await rm(normalized, { recursive: true, force: true });
+}
+
 export async function GET(request: NextRequest) {
   const modeParam = (request.nextUrl.searchParams.get("mode") || "latest").toLowerCase();
   const query = request.nextUrl.searchParams.get("query")?.trim() || "";
@@ -55,6 +84,15 @@ export async function GET(request: NextRequest) {
   if (modeParam === "series") {
     const series = await listSeriesBasic();
     return NextResponse.json({ items: series, total: series.length, limit: series.length, offset: 0 });
+  }
+
+  if (modeParam === "admin") {
+    if (!isAdmin(request)) {
+      return NextResponse.json({ error: "Brak autoryzacji admina." }, { status: 401 });
+    }
+
+    const items = await listAdminSeriesDetails();
+    return NextResponse.json({ items, total: items.length, limit: items.length, offset: 0 });
   }
 
   const mode = modeParam === "popular" || modeParam === "search" ? modeParam : "latest";
@@ -171,6 +209,116 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({ ok: true, chapter: created });
+    }
+
+    if (action === "update-series") {
+      const seriesId = `${formData.get("seriesId") || ""}`.trim();
+      const title = `${formData.get("title") || ""}`.trim();
+      const slugInput = `${formData.get("slug") || ""}`.trim();
+      const description = `${formData.get("description") || ""}`.trim();
+      const statusInput = `${formData.get("status") || "ongoing"}`;
+      const tagsRaw = `${formData.get("tags") || ""}`;
+      const keepCover = `${formData.get("keepCover") || "true"}` !== "false";
+
+      if (!seriesId || !title) {
+        return NextResponse.json({ error: "Brakuje danych serii." }, { status: 400 });
+      }
+
+      const status = statusInput === "completed" || statusInput === "hiatus" ? statusInput : "ongoing";
+      const tags = tagsRaw
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+        .slice(0, 10);
+
+      const store = await readStore();
+      const current = store.series.find((entry) => entry.id === seriesId);
+      if (!current) {
+        return NextResponse.json({ error: "Nie znaleziono serii." }, { status: 404 });
+      }
+
+      let nextCoverUrl: string | null | undefined;
+      const coverCandidate = formData.get("cover");
+      if (coverCandidate instanceof File && coverCandidate.size > 0) {
+        const slugPart = sanitizeFilePart(normalizeSlug(slugInput || title || current.slug));
+        const extension = extensionFromFilename(coverCandidate.name, "jpg");
+        const filename = `${slugPart}-${Date.now()}.${extension}`;
+        const diskPath = path.join(process.cwd(), "public", "uploads", "manga", "covers", filename);
+        await saveUploadedFile(coverCandidate, diskPath);
+        nextCoverUrl = `/uploads/manga/covers/${filename}`;
+      }
+
+      const updated = await updateSeries({
+        id: seriesId,
+        title,
+        slug: slugInput,
+        description,
+        tags,
+        status,
+        coverUrl: nextCoverUrl,
+        keepCover,
+      });
+
+      if (nextCoverUrl && current.coverUrl && current.coverUrl !== nextCoverUrl) {
+        await removePublicUploadByUrl(current.coverUrl);
+      }
+
+      if (!keepCover && current.coverUrl) {
+        await removePublicUploadByUrl(current.coverUrl);
+      }
+
+      return NextResponse.json({ ok: true, series: updated });
+    }
+
+    if (action === "delete-series") {
+      const seriesId = `${formData.get("seriesId") || ""}`.trim();
+      if (!seriesId) {
+        return NextResponse.json({ error: "Brakuje ID serii." }, { status: 400 });
+      }
+
+      const store = await readStore();
+      const series = store.series.find((entry) => entry.id === seriesId);
+      if (!series) {
+        return NextResponse.json({ error: "Nie znaleziono serii." }, { status: 404 });
+      }
+
+      const result = await deleteSeries(seriesId);
+
+      await removePublicUploadByUrl(series.coverUrl);
+      await rm(path.join(process.cwd(), "public", "uploads", "manga", series.slug), { recursive: true, force: true });
+
+      return NextResponse.json({ ok: true, removed: result.removedChapterIds.length });
+    }
+
+    if (action === "update-chapter") {
+      const chapterId = `${formData.get("chapterId") || ""}`.trim();
+      const numberRaw = `${formData.get("chapterNumber") || ""}`.trim();
+      const title = `${formData.get("chapterTitle") || ""}`.trim();
+      const number = Number.parseFloat(numberRaw);
+
+      if (!chapterId || !Number.isFinite(number) || number <= 0) {
+        return NextResponse.json({ error: "Nieprawidłowe dane rozdziału." }, { status: 400 });
+      }
+
+      const updated = await updateChapter({ chapterId, number, title });
+      return NextResponse.json({ ok: true, chapter: updated });
+    }
+
+    if (action === "delete-chapter") {
+      const chapterId = `${formData.get("chapterId") || ""}`.trim();
+      if (!chapterId) {
+        return NextResponse.json({ error: "Brakuje ID rozdziału." }, { status: 400 });
+      }
+
+      const deleted = await deleteChapter(chapterId);
+
+      const firstPage = deleted.pages[0] || "";
+      if (firstPage.startsWith("/uploads/manga/")) {
+        const directoryUrl = firstPage.split("/").slice(0, -1).join("/");
+        await removePublicUploadByUrl(directoryUrl);
+      }
+
+      return NextResponse.json({ ok: true, chapter: deleted.id });
     }
 
     return NextResponse.json({ error: "Nieznana akcja." }, { status: 400 });
