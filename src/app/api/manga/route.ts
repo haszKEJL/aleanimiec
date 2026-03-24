@@ -15,8 +15,11 @@ import {
   updateChapter,
   updateSeries,
 } from "@/lib/manga-cms-store";
+import { getMangaUploadsDir, getRelativePathFromAssetUrl, toMangaAssetUrl } from "@/lib/manga-storage";
 
 export const runtime = "nodejs";
+
+const MANGA_UPLOADS_DIR = getMangaUploadsDir();
 
 function safeEquals(left: string, right: string): boolean {
   const leftBuffer = Buffer.from(left);
@@ -55,13 +58,13 @@ async function saveUploadedFile(file: File, targetPath: string): Promise<void> {
 }
 
 async function removePublicUploadByUrl(url: string | null): Promise<void> {
-  if (!url || !url.startsWith("/uploads/manga/")) {
+  const relative = getRelativePathFromAssetUrl(url);
+  if (!relative) {
     return;
   }
 
-  const relative = url.replace(/^\/+/, "");
-  const targetPath = path.join(process.cwd(), "public", relative);
-  const uploadsRoot = path.join(process.cwd(), "public", "uploads", "manga");
+  const targetPath = path.join(MANGA_UPLOADS_DIR, relative);
+  const uploadsRoot = MANGA_UPLOADS_DIR;
   const normalized = path.normalize(targetPath);
 
   if (!normalized.startsWith(path.normalize(uploadsRoot))) {
@@ -138,9 +141,9 @@ export async function POST(request: NextRequest) {
         const slug = sanitizeFilePart(normalizeSlug(slugInput || title));
         const extension = extensionFromFilename(coverCandidate.name, "jpg");
         const filename = `${slug}-${Date.now()}.${extension}`;
-        const diskPath = path.join(process.cwd(), "public", "uploads", "manga", "covers", filename);
+        const diskPath = path.join(MANGA_UPLOADS_DIR, "covers", filename);
         await saveUploadedFile(coverCandidate, diskPath);
-        coverUrl = `/uploads/manga/covers/${filename}`;
+        coverUrl = toMangaAssetUrl(`covers/${filename}`);
       }
 
       const normalizedStatus = status === "completed" || status === "hiatus" ? status : "ongoing";
@@ -187,7 +190,7 @@ export async function POST(request: NextRequest) {
       }
 
       const chapterPathPart = `ch-${String(chapterNumber).replace(".", "-")}-${Date.now()}`;
-      const chapterDir = path.join(process.cwd(), "public", "uploads", "manga", series.slug, chapterPathPart);
+      const chapterDir = path.join(MANGA_UPLOADS_DIR, series.slug, chapterPathPart);
       await mkdir(chapterDir, { recursive: true });
 
       const pages: string[] = [];
@@ -198,7 +201,7 @@ export async function POST(request: NextRequest) {
         const filename = `${String(index + 1).padStart(3, "0")}.${ext}`;
         const diskPath = path.join(chapterDir, filename);
         await saveUploadedFile(pageFile, diskPath);
-        pages.push(`/uploads/manga/${series.slug}/${chapterPathPart}/${filename}`);
+        pages.push(toMangaAssetUrl(`${series.slug}/${chapterPathPart}/${filename}`));
       }
 
       const created = await addChapter({
@@ -243,9 +246,9 @@ export async function POST(request: NextRequest) {
         const slugPart = sanitizeFilePart(normalizeSlug(slugInput || title || current.slug));
         const extension = extensionFromFilename(coverCandidate.name, "jpg");
         const filename = `${slugPart}-${Date.now()}.${extension}`;
-        const diskPath = path.join(process.cwd(), "public", "uploads", "manga", "covers", filename);
+        const diskPath = path.join(MANGA_UPLOADS_DIR, "covers", filename);
         await saveUploadedFile(coverCandidate, diskPath);
-        nextCoverUrl = `/uploads/manga/covers/${filename}`;
+        nextCoverUrl = toMangaAssetUrl(`covers/${filename}`);
       }
 
       const updated = await updateSeries({
@@ -285,7 +288,7 @@ export async function POST(request: NextRequest) {
       const result = await deleteSeries(seriesId);
 
       await removePublicUploadByUrl(series.coverUrl);
-      await rm(path.join(process.cwd(), "public", "uploads", "manga", series.slug), { recursive: true, force: true });
+      await rm(path.join(MANGA_UPLOADS_DIR, series.slug), { recursive: true, force: true });
 
       return NextResponse.json({ ok: true, removed: result.removedChapterIds.length });
     }

@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { normalizeMangaAssetUrl } from "@/lib/manga-storage";
 
 export type MangaSeries = {
   id: string;
@@ -201,7 +202,7 @@ export async function listSeriesCards(params: {
       description: series.description,
       tags: series.tags,
       status: series.status,
-      coverUrl: series.coverUrl,
+      coverUrl: normalizeMangaAssetUrl(series.coverUrl),
       chapterCount: chapters.length,
       latestChapterNumber: latest ? latest.number : null,
       latestChapterDate: latest ? latest.createdAt : null,
@@ -248,9 +249,19 @@ export async function getSeriesBySlug(slug: string): Promise<{
 
   const chapters = store.chapters
     .filter((chapter) => chapter.seriesId === series.id)
-    .sort((left, right) => right.number - left.number || right.createdAt.localeCompare(left.createdAt));
+    .sort((left, right) => right.number - left.number || right.createdAt.localeCompare(left.createdAt))
+    .map((chapter) => ({
+      ...chapter,
+      pages: chapter.pages.map((pageUrl) => normalizeMangaAssetUrl(pageUrl) || pageUrl),
+    }));
 
-  return { series, chapters };
+  return {
+    series: {
+      ...series,
+      coverUrl: normalizeMangaAssetUrl(series.coverUrl),
+    },
+    chapters,
+  };
 }
 
 export async function listAdminSeriesDetails(): Promise<MangaAdminSeries[]> {
@@ -260,9 +271,14 @@ export async function listAdminSeriesDetails(): Promise<MangaAdminSeries[]> {
     .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
     .map((series) => ({
       ...series,
+      coverUrl: normalizeMangaAssetUrl(series.coverUrl),
       chapters: store.chapters
         .filter((chapter) => chapter.seriesId === series.id)
-        .sort((left, right) => right.number - left.number || right.createdAt.localeCompare(left.createdAt)),
+        .sort((left, right) => right.number - left.number || right.createdAt.localeCompare(left.createdAt))
+        .map((chapter) => ({
+          ...chapter,
+          pages: chapter.pages.map((pageUrl) => normalizeMangaAssetUrl(pageUrl) || pageUrl),
+        })),
     }));
 }
 

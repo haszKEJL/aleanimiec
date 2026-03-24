@@ -24,6 +24,7 @@ Skopiuj `.env.example` do `.env.local` i uzupełnij:
 - `UPLOAD_EPISODE_DIR` – katalog odcinka podmienianego przez upload, domyślnie `episode-1`
 - `UPLOAD_TMP_DIR` – katalog roboczy dla uploadu i konwersji, np. `/tmp/aleanimiec-upload`
 - `UPLOAD_TMP_MAX_AGE_MS` – po ilu ms usuwać stare katalogi tymczasowe uploadu (domyślnie `21600000`, czyli 6h)
+- `MANGA_UPLOADS_DIR` – katalog trwałego storage obrazów mangi (zalecane poza repo), np. `/var/lib/aleanimiec/manga`
 
 ## Uruchomienie lokalne
 1. Instalacja zależności:
